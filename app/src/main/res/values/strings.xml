@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">btManage</string>
+    <string name="unknown_model">Apple headphones</string>
+    <string name="cell_left">Left</string>
+    <string name="cell_right">Right</string>
+    <string name="cell_case">Case</string>
+    <string name="cell_main">Battery</string>
+    <string name="in_ear">in ear</string>
+    <string name="charging">charging</string>
+    <string name="percent_format">%1$d%%</string>
+    <string name="percent_unknown" translatable="false">—</string>
+    <string name="empty_title">No headphones nearby</string>
+    <string name="demo_notice">Demo data. Scanning for real devices is not in this build yet</string>
+    <string name="core_missing">The core library is missing from this build</string>
+    <string name="core_version">Core %1$s</string>
+    <string name="widget_label">Battery levels</string>
+    <string name="widget_description">Charge of the nearest earbuds and their case</string>
+</resources>

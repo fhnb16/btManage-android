@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="unknown_model">Наушники Apple</string>
+    <string name="cell_left">Левый</string>
+    <string name="cell_right">Правый</string>
+    <string name="cell_case">Кейс</string>
+    <string name="cell_main">Заряд</string>
+    <string name="in_ear">в ухе</string>
+    <string name="charging">заряжается</string>
+    <string name="percent_format">%1$d %%</string>
+    <string name="empty_title">Наушников рядом нет</string>
+    <string name="demo_notice">Демо-данные. Поиск настоящих устройств в этой сборке ещё не работает</string>
+    <string name="core_missing">В этой сборке нет библиотеки ядра</string>
+    <string name="core_version">Ядро %1$s</string>
+    <string name="widget_label">Заряд наушников</string>
+    <string name="widget_description">Заряд ближайших наушников и их кейса</string>
+</resources>

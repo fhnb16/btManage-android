@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# The wrapper script must keep LF endings to run on Linux and macOS.
+gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary

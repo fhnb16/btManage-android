@@ -1,0 +1,88 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: Branch, tag or commit of btManage-core to build against (default branch if empty)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NDK_VERSION: 4.1.2
+
+jobs:
+  build:
+    name: Android
+    # btManage-core is private. Pull requests from forks do not get its token, so they are skipped.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      HAS_CORE_TOKEN: ${{ secrets.CORE_REPO_TOKEN != '' }}
+    steps:
+      - name: Require the core token
+        if: env.HAS_CORE_TOKEN != 'true'
+        run: |
+          echo "::error::Secret CORE_REPO_TOKEN is not set. Add a fine-grained token with read access to the contents of btManage-core (Settings, Secrets and variables, Actions)."
+          exit 1
+
+      # The two repositories sit side by side, as on a developer machine.
+      - uses: actions/checkout@v7
+        with:
+          path: btManage-android
+
+      - name: Check out the core
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/btManage-core
+          ref: ${{ inputs.core_ref }}
+          token: ${{ secrets.CORE_REPO_TOKEN }}
+          path: btManage-core
+
+      - name: Record the core revision
+        run: echo "Built against btManage-core \`$(git -C btManage-core rev-parse HEAD)\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: btManage-core
+
+      - name: Install cargo-ndk
+        run: cargo ndk --version 2>/dev/null | grep -q "$CARGO_NDK_VERSION" || cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # Builds the Rust core for three ABIs too: see the cargoNdkBuild task in app/build.gradle.kts.
+      - name: Build
+        working-directory: btManage-android
+        run: |
+          export ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: btManage-android-debug
+          path: btManage-android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

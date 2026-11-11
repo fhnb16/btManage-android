@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window theme shown until Compose draws its first frame. -->
+    <style name="Theme.BtManage" parent="android:Theme.Material.Light.NoActionBar" />
+    <color name="launcher_background">#3D7DCA</color>
+</resources>
