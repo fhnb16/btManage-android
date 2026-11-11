@@ -1,6 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="unknown_model">Наушники Apple</string>
+    <string name="back">Назад</string>
+    <string name="tab_devices">Устройства</string>
+    <string name="tab_settings">Параметры</string>
+
+    <string name="unknown_apple">Наушники Apple</string>
+    <string name="unknown_fast_pair">Наушники Fast Pair</string>
+    <string name="kind_headphones">Наушники</string>
+    <string name="kind_headset">Гарнитура</string>
+    <string name="kind_speaker">Колонка</string>
+    <string name="kind_mouse">Мышь</string>
+    <string name="kind_keyboard">Клавиатура</string>
+    <string name="kind_gamepad">Геймпад</string>
+    <string name="kind_remote">Пульт</string>
+    <string name="kind_phone">Телефон</string>
+    <string name="kind_tablet">Планшет</string>
+    <string name="kind_computer">Компьютер</string>
+    <string name="kind_watch">Часы</string>
+    <string name="kind_wearable">Носимое устройство</string>
+    <string name="kind_car">Автомобиль</string>
+    <string name="kind_other">Устройство Bluetooth</string>
+
     <string name="cell_left">Левый</string>
     <string name="cell_right">Правый</string>
     <string name="cell_case">Кейс</string>
@@ -8,10 +28,90 @@
     <string name="in_ear">в ухе</string>
     <string name="charging">заряжается</string>
     <string name="percent_format">%1$d %%</string>
-    <string name="empty_title">Наушников рядом нет</string>
-    <string name="demo_notice">Демо-данные. Поиск настоящих устройств в этой сборке ещё не работает</string>
+
+    <string name="status_connected">Подключено</string>
+    <string name="status_nearby">Рядом</string>
+    <string name="status_disconnected">Не подключено</string>
+    <string name="age_minutes">%1$d мин назад</string>
+    <string name="age_hours">%1$d ч назад</string>
+    <string name="age_days">%1$d дн назад</string>
+    <string name="estimate_hours_minutes">Хватит примерно на %1$d ч %2$d мин</string>
+    <string name="estimate_hours">Хватит примерно на %1$d ч</string>
+    <string name="estimate_minutes">Хватит примерно на %1$d мин</string>
+
+    <string name="group_connected">Подключены</string>
+    <string name="group_nearby">Рядом</string>
+    <string name="group_other">Не подключены</string>
+    <string name="empty_title">Устройств пока нет</string>
+    <string name="empty_hint">Здесь появятся сопряжённые устройства и наушники поблизости</string>
     <string name="core_missing">В этой сборке нет библиотеки ядра</string>
-    <string name="core_version">Ядро %1$s</string>
-    <string name="widget_label">Заряд наушников</string>
-    <string name="widget_description">Заряд ближайших наушников и их кейса</string>
+    <string name="permission_title">Нужен доступ к Bluetooth</string>
+    <string name="permission_hint">btManage читает заряд ваших Bluetooth-устройств и слушает уровни, которые передают наушники. Уведомления сообщат, когда заряд станет низким</string>
+    <string name="permission_grant">Разрешить</string>
+
+    <string name="section_battery">Заряд</string>
+    <string name="no_battery">Устройство не сообщает заряд</string>
+    <string name="section_history">Заряд за 24 часа</string>
+    <string name="chart_now">сейчас</string>
+    <string name="section_info">Сведения</string>
+    <string name="info_type">Тип</string>
+    <string name="info_model">Модель</string>
+    <string name="info_address">Адрес</string>
+    <string name="info_transport">Соединение</string>
+    <string name="transport_dual">Classic и LE</string>
+    <string name="info_profiles">Профили</string>
+    <string name="info_signal">Сигнал</string>
+    <string name="signal_format">%1$d дБм</string>
+    <string name="device_notifications">Уведомления об этом устройстве</string>
+    <string name="forget_history">Очистить историю заряда</string>
+
+    <string name="settings_notifications">Уведомления</string>
+    <string name="setting_notify_arrival">Когда наушники подключаются или оказываются рядом</string>
+    <string name="setting_notify_low">Когда заряд становится низким</string>
+    <string name="setting_threshold">Порог низкого заряда</string>
+    <string name="settings_appearance">Оформление</string>
+    <string name="setting_theme">Тема</string>
+    <string name="setting_accent">Акцентный цвет</string>
+    <string name="choice_system">Системная</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="accent_bluetooth">Синий Bluetooth</string>
+
+    <string name="settings_widget">Виджет</string>
+    <string name="widget_count">Устройств в виджете</string>
+    <string name="widget_layout">Расположение</string>
+    <string name="layout_row">В ряд</string>
+    <string name="layout_column">Столбцом</string>
+    <string name="layout_grid">Сеткой</string>
+    <string name="widget_style">Подробность</string>
+    <string name="style_compact">Один уровень</string>
+    <string name="style_detailed">Каждая батарея</string>
+    <string name="widget_background">Фон</string>
+    <string name="background_solid">Сплошной</string>
+    <string name="background_translucent">Полупрозрачный</string>
+    <string name="background_transparent">Без фона</string>
+    <string name="widget_blur_note">Android не позволяет виджету размывать обои под собой, поэтому выбирается, насколько они просвечивают</string>
+    <string name="widget_theme">Тема виджета</string>
+    <string name="widget_accent">Акцентный цвет виджета</string>
+    <string name="widget_devices">Какие устройства показывать</string>
+    <string name="widget_devices_hint">Если не отмечено ни одного, виджет показывает устройства, которые сейчас используются</string>
+    <string name="widget_label">Заряд устройств</string>
+    <string name="widget_description">Заряд ваших Bluetooth-устройств</string>
+
+    <string name="settings_background">Фоновая работа</string>
+    <string name="setting_start_on_boot">Запускать при включении телефона</string>
+    <string name="settings_updates">Обновления</string>
+    <string name="setting_auto_update">Проверять обновления при открытии приложения</string>
+    <string name="update_check">Проверить сейчас</string>
+    <string name="update_checking">Проверка</string>
+    <string name="update_none">Установлена последняя версия</string>
+    <string name="update_available">Доступна версия %1$s</string>
+    <string name="update_download">Скачать</string>
+    <string name="settings_about">О программе</string>
+    <string name="about_version">Версия %1$s, ядро %2$s</string>
+
+    <string name="status_watching">Слежу за вашими Bluetooth-устройствами</string>
+    <string name="channel_status">Заряд устройств</string>
+    <string name="channel_alerts">Подключения и низкий заряд</string>
+    <string name="toast_low">Низкий заряд: %1$s</string>
 </resources>

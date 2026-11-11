@@ -1,7 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name" translatable="false">btManage</string>
-    <string name="unknown_model">Apple headphones</string>
+    <string name="back">Back</string>
+    <string name="tab_devices">Devices</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="unknown_apple">Apple headphones</string>
+    <string name="unknown_fast_pair">Fast Pair earbuds</string>
+    <string name="kind_headphones">Headphones</string>
+    <string name="kind_headset">Headset</string>
+    <string name="kind_speaker">Speaker</string>
+    <string name="kind_mouse">Mouse</string>
+    <string name="kind_keyboard">Keyboard</string>
+    <string name="kind_gamepad">Game controller</string>
+    <string name="kind_remote">Remote</string>
+    <string name="kind_phone">Phone</string>
+    <string name="kind_tablet">Tablet</string>
+    <string name="kind_computer">Computer</string>
+    <string name="kind_watch">Watch</string>
+    <string name="kind_wearable">Wearable</string>
+    <string name="kind_car">Car</string>
+    <string name="kind_other">Bluetooth device</string>
+
     <string name="cell_left">Left</string>
     <string name="cell_right">Right</string>
     <string name="cell_case">Case</string>
@@ -10,10 +30,92 @@
     <string name="charging">charging</string>
     <string name="percent_format">%1$d%%</string>
     <string name="percent_unknown" translatable="false">—</string>
-    <string name="empty_title">No headphones nearby</string>
-    <string name="demo_notice">Demo data. Scanning for real devices is not in this build yet</string>
+
+    <string name="status_connected">Connected</string>
+    <string name="status_nearby">Nearby</string>
+    <string name="status_disconnected">Not connected</string>
+    <string name="age_minutes">%1$d min ago</string>
+    <string name="age_hours">%1$d h ago</string>
+    <string name="age_days">%1$d d ago</string>
+    <string name="estimate_hours_minutes">About %1$d h %2$d min left</string>
+    <string name="estimate_hours">About %1$d h left</string>
+    <string name="estimate_minutes">About %1$d min left</string>
+
+    <string name="group_connected">Connected</string>
+    <string name="group_nearby">Nearby</string>
+    <string name="group_other">Not connected</string>
+    <string name="empty_title">No devices yet</string>
+    <string name="empty_hint">Paired devices and earbuds nearby show up here</string>
     <string name="core_missing">The core library is missing from this build</string>
-    <string name="core_version">Core %1$s</string>
+    <string name="permission_title">Bluetooth access is needed</string>
+    <string name="permission_hint">btManage reads the battery of your Bluetooth devices and listens for the levels earbuds broadcast. Notifications tell you when a battery runs low</string>
+    <string name="permission_grant">Allow</string>
+
+    <string name="section_battery">Battery</string>
+    <string name="no_battery">This device does not report its battery</string>
+    <string name="section_history">Battery over 24 hours</string>
+    <string name="chart_now">now</string>
+    <string name="section_info">Details</string>
+    <string name="info_type">Type</string>
+    <string name="info_model">Model</string>
+    <string name="info_address">Address</string>
+    <string name="info_transport">Link</string>
+    <string name="transport_classic">Bluetooth Classic</string>
+    <string name="transport_le">Bluetooth LE</string>
+    <string name="transport_dual">Classic and LE</string>
+    <string name="info_profiles">Profiles</string>
+    <string name="info_signal">Signal</string>
+    <string name="signal_format">%1$d dBm</string>
+    <string name="device_notifications">Notifications about this device</string>
+    <string name="forget_history">Clear battery history</string>
+
+    <string name="settings_notifications">Notifications</string>
+    <string name="setting_notify_arrival">When headphones connect or come near</string>
+    <string name="setting_notify_low">When a battery runs low</string>
+    <string name="setting_threshold">Low battery threshold</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="setting_theme">Theme</string>
+    <string name="setting_accent">Accent colour</string>
+    <string name="choice_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="accent_bluetooth">Bluetooth blue</string>
+
+    <string name="settings_widget">Widget</string>
+    <string name="widget_count">Devices in the widget</string>
+    <string name="widget_layout">Layout</string>
+    <string name="layout_row">Side by side</string>
+    <string name="layout_column">Stacked</string>
+    <string name="layout_grid">Grid</string>
+    <string name="widget_style">Detail</string>
+    <string name="style_compact">One level</string>
+    <string name="style_detailed">Each battery</string>
+    <string name="widget_background">Background</string>
+    <string name="background_solid">Solid</string>
+    <string name="background_translucent">Translucent</string>
+    <string name="background_transparent">None</string>
+    <string name="widget_blur_note">Android does not let a widget blur the wallpaper behind it, so the choice is how much of it shows through</string>
+    <string name="widget_theme">Widget theme</string>
+    <string name="widget_accent">Widget accent colour</string>
+    <string name="widget_devices">Devices to show</string>
+    <string name="widget_devices_hint">With none ticked, the widget shows the devices in use</string>
     <string name="widget_label">Battery levels</string>
-    <string name="widget_description">Charge of the nearest earbuds and their case</string>
+    <string name="widget_description">Charge of your Bluetooth devices</string>
+
+    <string name="settings_background">Background</string>
+    <string name="setting_start_on_boot">Start when the phone starts</string>
+    <string name="settings_updates">Updates</string>
+    <string name="setting_auto_update">Check for updates when the app opens</string>
+    <string name="update_check">Check now</string>
+    <string name="update_checking">Checking</string>
+    <string name="update_none">You have the latest version</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_download">Download</string>
+    <string name="settings_about">About</string>
+    <string name="about_version">Version %1$s, core %2$s</string>
+
+    <string name="status_watching">Watching your Bluetooth devices</string>
+    <string name="channel_status">Device levels</string>
+    <string name="channel_alerts">Connections and low battery</string>
+    <string name="toast_low">Low battery: %1$s</string>
 </resources>

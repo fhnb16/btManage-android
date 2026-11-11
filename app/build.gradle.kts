@@ -3,21 +3,51 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Version and update source. CI overrides them: -Pbtmanage.versionName=1.2.3 and so on.
+val versionNameProperty = providers.gradleProperty("btmanage.versionName").getOrElse("0.1.0")
+val versionCodeProperty = providers.gradleProperty("btmanage.versionCode").map { it.toInt() }.getOrElse(1)
+val updateRepository = providers.gradleProperty("btmanage.updateRepository").getOrElse("fhnb16/btManage-android")
+
+// Release signing. The keystore never lives in the repository: its path and passwords come
+// from the environment (see README, "Signing"). Without them the release build is unsigned.
+val keystoreFile = providers.environmentVariable("BTM_KEYSTORE_FILE").orNull
+val keystorePassword = providers.environmentVariable("BTM_KEYSTORE_PASSWORD").orNull
+val keyAliasName = providers.environmentVariable("BTM_KEY_ALIAS").orNull
+val keyAliasPassword = providers.environmentVariable("BTM_KEY_PASSWORD").orNull
+val canSign = listOf(keystoreFile, keystorePassword, keyAliasName).none { it.isNullOrEmpty() }
+
 android {
-    namespace = "io.github.fhnb16.btmanage"
+    namespace = "ru.fhnb16.btmanage"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.fhnb16.btmanage"
+        applicationId = "ru.fhnb16.btmanage"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = versionCodeProperty
+        versionName = versionNameProperty
+        // "owner/repository" whose GitHub releases the application checks for updates.
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
+    }
+
+    signingConfigs {
+        if (canSign) {
+            create("release") {
+                storeFile = file(keystoreFile!!)
+                storePassword = keystorePassword
+                keyAlias = keyAliasName
+                // A key without its own password uses the keystore's.
+                keyPassword = keyAliasPassword?.takeIf { it.isNotEmpty() } ?: keystorePassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (canSign) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -28,6 +58,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -56,7 +87,7 @@ val coreDir = rootProject.file(providers.gradleProperty("btmanage.coreDir").getO
 val skipRust = providers.gradleProperty("btmanage.skipRust").map { it.toBoolean() }.getOrElse(false)
 val jniLibsDir = layout.projectDirectory.dir("src/main/jniLibs")
 
-val cargoNdkBuild by tasks.registering(Exec::class) {
+val cargoNdkBuild = tasks.register<Exec>("cargoNdkBuild") {
     group = "build"
     description = "Builds the Rust core for Android with cargo-ndk"
     enabled = !skipRust

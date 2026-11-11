@@ -1,19 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The headphones mark, the same geometry as the Windows icon, inside the adaptive icon safe zone. -->
+<!-- The application mark, as in tools/make-icon.ps1 of btManage-windows (variant "waves"): an
+     angular B between two arcs. Drawn on the 16-unit grid of that script, scaled by 3.4 and
+     centred, so it sits inside the adaptive icon safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M 40.5,55.5 V 51 A 13.5,13.5 0 0 1 67.5,51 V 55.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5"
-        android:strokeLineCap="round" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 39.6,55.5 H 41.4 A 3.6,3.6 0 0 1 45,59.1 V 68.4 A 3.6,3.6 0 0 1 41.4,72 H 39.6 A 3.6,3.6 0 0 1 36,68.4 V 59.1 A 3.6,3.6 0 0 1 39.6,55.5 Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 66.6,55.5 H 68.4 A 3.6,3.6 0 0 1 72,59.1 V 68.4 A 3.6,3.6 0 0 1 68.4,72 H 66.6 A 3.6,3.6 0 0 1 63,68.4 V 59.1 A 3.6,3.6 0 0 1 66.6,55.5 Z" />
+    <group
+        android:scaleX="3.4"
+        android:scaleY="3.4"
+        android:translateX="26.8"
+        android:translateY="26.8">
+        <path
+            android:pathData="M 5.8,8 L 10.2,5.3 L 5.8,2.6 L 5.8,13.4 L 10.2,10.7 L 5.8,8"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.6"
+            android:strokeLineJoin="miter"
+            android:strokeMiterLimit="6" />
+        <path
+            android:pathData="M 2.87,12.62 A 6.9,6.9 0 0 1 2.87,3.38 M 13.13,3.38 A 6.9,6.9 0 0 1 13.13,12.62"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.25"
+            android:strokeLineCap="round" />
+    </group>
 </vector>
