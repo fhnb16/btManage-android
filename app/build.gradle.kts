@@ -4,7 +4,8 @@ plugins {
 }
 
 // Version and update source. CI overrides them: -Pbtmanage.versionName=1.2.3 and so on.
-val versionNameProperty = providers.gradleProperty("btmanage.versionName").getOrElse("0.1.0")
+// The version itself is in gradle.properties; the fallback only keeps a bare build going.
+val versionNameProperty = providers.gradleProperty("btmanage.versionName").getOrElse("0.0.0")
 val versionCodeProperty = providers.gradleProperty("btmanage.versionCode").map { it.toInt() }.getOrElse(1)
 val updateRepository = providers.gradleProperty("btmanage.updateRepository").getOrElse("fhnb16/btManage-android")
 

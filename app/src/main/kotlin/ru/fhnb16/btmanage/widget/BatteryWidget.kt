@@ -54,7 +54,7 @@ class BatteryWidget : GlanceAppWidget() {
             val settings by Settings.state.collectAsState()
             val config = settings.widget
             GlanceTheme {
-                val look = palette(config, fluent = settings.design == "fluent")
+                val look = palette(config, settings.design)
                 Content(context, pick(devices, config), config, settings.lowThreshold, look)
             }
         }
@@ -90,7 +90,7 @@ private class Palette(
  * and background opacity.
  */
 @Composable
-private fun palette(config: WidgetConfig, fluent: Boolean): Palette {
+private fun palette(config: WidgetConfig, design: String): Palette {
     // In the system theme each colour has a day and a night value; a fixed theme uses one for both.
     fun pair(light: Color, dark: Color): ColorProvider = when (config.theme) {
         "light" -> ColorProvider(light)
@@ -102,12 +102,34 @@ private fun palette(config: WidgetConfig, fluent: Boolean): Palette {
         "transparent" -> 0f
         else -> 1f
     }
-    val accent = if (config.accent == "bluetooth") pair(Color(0xFF0067D6), Color(0xFF8CC4FF)) else GlanceTheme.colors.primary
+    val bluetooth = config.accent == "bluetooth"
+    val blue = pair(Color(0xFF0067D6), Color(0xFF8CC4FF))
+    val accent = if (bluetooth) blue else GlanceTheme.colors.primary
     val track = pair(Color(0x1F000000), Color(0x29FFFFFF))
 
     return when {
+        // Holo: black or pale grey, the Holo blue, nearly square.
+        design == "holo" -> Palette(
+            background = pair(Color(0xFFF3F3F3).copy(alpha = opacity), Color(0xFF000000).copy(alpha = opacity)),
+            text = pair(Color(0xFF333333), Color(0xFFF3F3F3)),
+            secondary = pair(Color(0xFF737373), Color(0xFFBEBEBE)),
+            accent = if (bluetooth) blue else pair(Color(0xFF0099CC), Color(0xFF33B5E5)),
+            low = pair(Color(0xFFCC0000), Color(0xFFFF4444)),
+            track = track,
+            corner = 2.dp,
+        )
+        // Android 2.1: black or white, the orange highlight, square.
+        design == "eclair" -> Palette(
+            background = pair(Color(0xFFFFFFFF).copy(alpha = opacity), Color(0xFF000000).copy(alpha = opacity)),
+            text = pair(Color(0xFF000000), Color(0xFFFFFFFF)),
+            secondary = pair(Color(0xFF5A5A5A), Color(0xFFA8A8A8)),
+            accent = if (bluetooth) blue else pair(Color(0xFFE07800), Color(0xFFFF9000)),
+            low = pair(Color(0xFFCC0000), Color(0xFFFF5050)),
+            track = track,
+            corner = 0.dp,
+        )
         // Fluent: the card of the Windows application, with its small corners.
-        fluent -> Palette(
+        design == "fluent" -> Palette(
             background = pair(Color(0xFFFBFBFB).copy(alpha = opacity), Color(0xFF2B2B2B).copy(alpha = opacity)),
             text = pair(Color(0xFF1B1B1B), Color(0xFFFFFFFF)),
             secondary = pair(Color(0xFF5D5D5D), Color(0xFFCDCDCD)),

@@ -76,6 +76,8 @@
     <string name="setting_design">Стиль интерфейса</string>
     <string name="design_material_note">Родной вид Android. С системным акцентом цвета берутся из обоев, на Android 12 и новее</string>
     <string name="design_fluent_note">Вид приложения для Windows: серые поверхности, карточки с рамкой, небольшие скругления</string>
+    <string name="design_holo_note">Holo: чёрный или светло-серый фон, голубой акцент, тонкие цифры, заголовки прописными</string>
+    <string name="design_eclair_note">Ранний Android: чёрный или белый фон, оранжевая подсветка, серая строка заголовка</string>
     <string name="settings_colours">Цвета</string>
     <string name="setting_theme">Тема</string>
     <string name="setting_accent">Акцентный цвет</string>
@@ -107,17 +109,26 @@
     <string name="settings_background">Фоновая работа</string>
     <string name="setting_start_on_boot">Запускать при включении телефона</string>
     <string name="settings_updates">Обновления</string>
-    <string name="setting_auto_update">Проверять обновления при открытии приложения</string>
+    <string name="setting_auto_update">Проверять обновления</string>
+    <string name="setting_auto_install">Скачивать и устанавливать обновления самостоятельно</string>
+    <string name="setting_auto_install_hint">В первый раз Android попросит разрешить btManage установку приложений и подтвердить её. После этого, на Android 12 и новее, обновления ставятся без вопросов. В фоне ничего не скачивается через лимитное подключение</string>
     <string name="update_check">Проверить сейчас</string>
     <string name="update_checking">Проверка</string>
     <string name="update_none">Установлена последняя версия</string>
+    <string name="update_check_failed">Не удалось проверить обновления</string>
     <string name="update_available">Доступна версия %1$s</string>
-    <string name="update_download">Скачать</string>
+    <string name="update_install">Установить</string>
+    <string name="update_downloading">Загрузка, %1$d %%</string>
+    <string name="update_installing">Установка</string>
+    <string name="update_failed">Не удалось установить обновление</string>
+    <string name="update_page">Страница выпуска</string>
+    <string name="update_ready">Версия %1$s готова к установке</string>
     <string name="settings_about">О программе</string>
     <string name="about_version">Версия %1$s, ядро %2$s</string>
 
     <string name="status_watching">Слежу за вашими Bluetooth-устройствами</string>
     <string name="channel_status">Заряд устройств</string>
     <string name="channel_alerts">Подключения и низкий заряд</string>
+    <string name="channel_updates">Обновления</string>
     <string name="toast_low">Низкий заряд: %1$s</string>
 </resources>

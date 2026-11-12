@@ -20,8 +20,17 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Looking for a newer release on GitHub. -->
+    <!-- Looking for a newer release on GitHub and downloading it; the network state tells
+         whether the connection is metered, where nothing is downloaded unasked. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Installing the downloaded update. The user still has to allow this application as a
+         source of installations, in Android's settings. The second permission lets later
+         updates of the application by itself go through without a confirmation, on
+         Android 12 and later. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
@@ -52,8 +61,14 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <!-- Receives the result of installing an update from Android's package installer. -->
+        <receiver
+            android:name=".data.InstallReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".widget.BatteryWidgetReceiver"

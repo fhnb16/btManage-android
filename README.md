@@ -12,9 +12,9 @@ Android 8.0 (API 26) or later.
 - **Device page.** Batteries, an estimate of the time left, a chart of the last 24 hours, type, address, profiles, signal.
 - **Notifications.** A quiet ongoing one with the current levels; alerts when your headphones connect and when a battery runs low.
 - **Widget.** The levels of up to four devices on the home screen. Configured in the application's settings: how many devices and which, layout (side by side, stacked, grid), detail (one level, or each battery), background (solid, translucent, none), theme and accent colour. Android gives a widget no way to blur the wallpaper behind it, so there is no blur option.
-- **Two designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later; and Fluent, the look of the Windows application: grey surfaces, bordered cards, small corners, the Windows type sizes. The widget follows the choice.
+- **Four designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later. Fluent, the look of the Windows application: grey surfaces, bordered cards, small corners, the Windows type sizes. Android 4.3 (Holo): black or pale grey, the Holo blue, thin figures, headers in capitals. Android 2.1: black or white, the orange highlight, a grey title bar. The two historical ones are a likeness in colour, shape and type on today's components, not the old widgets rebuilt. The widget follows the choice.
 - **Settings**, on four tabs. General: notifications and their threshold, start with the phone. Appearance: design, theme, accent colour (the system's, or Bluetooth blue). Widget. About: updates and versions.
-- **Updates.** Looks at the GitHub releases of this repository when the application opens and offers the newer APK for download.
+- **Updates.** Looks at the GitHub releases of this repository when the application opens and once a day in the background. A newer release is downloaded, checked against the SHA-256 GitHub reports, and handed to Android's package installer, without a trip to the browser. See [Updates](#updates) for what Android asks the user.
 
 A background service does the watching. It keeps scanning with the screen off and starts with the phone unless switched off in the settings.
 
@@ -27,6 +27,19 @@ A background service does the watching. It keeps scanning with the screen off an
 | Headsets, mice, keyboards, controllers | The level Android itself holds for a connected device |
 
 Android does not tell applications the product identifier of a paired device, so AirPods are matched to their pairing by name: the pairing must have "AirPods" or "Beats" in its name.
+
+## Updates
+
+The application updates itself from the releases of this repository. Android has the last word on installing, so the first update takes two answers from the user:
+
+1. **Letting btManage install apps.** The application opens Android's own screen for it ("Install unknown apps") the first time an update is found, and when "Download and install updates on their own" is switched on.
+2. **Confirming the installation**, in Android's dialog. If the application is not on screen at that moment, a notification leads to the dialog.
+
+From Android 12 on, Android lets an application update itself without the second question once it has done so before, so later updates go through silently. Before Android 12 every update is confirmed.
+
+Android refuses an update that is not signed with the same key as the installed application, whatever the application itself checks.
+
+In the background an update is downloaded only over a connection that is not metered. With automatic installation switched off, or without the right to install, the user gets a notification that a newer version exists and installs it from the banner in the application.
 
 ## Build
 

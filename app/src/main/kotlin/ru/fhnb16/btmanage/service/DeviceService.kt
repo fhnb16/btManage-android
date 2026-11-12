@@ -39,6 +39,7 @@ import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Settings
+import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.widget.BatteryWidget
 
@@ -64,6 +65,10 @@ class DeviceService : Service() {
     private var scanning = false
     private var widgetSignature = ""
     private var statusText = ""
+
+    /** When updates were last looked for; set so that the first look comes shortly after start. */
+    private var updateCheckedAt = System.currentTimeMillis() - UPDATE_EVERY_MS + UPDATE_FIRST_MS
+    private var announcedVersion: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -113,8 +118,35 @@ class DeviceService : Service() {
             Devices.refresh()
             onDevices(Devices.list.value)
             if (tick % SAVE_EVERY == SAVE_EVERY - 1) Devices.save()
+            checkForUpdate()
             tick++
             delay(TICK_MS)
+        }
+    }
+
+    /**
+     * Once a day: looks for a newer release and, if the user wants updates installed on
+     * their own, downloads and installs it. That happens only where a download costs
+     * nothing and Android already lets the application install packages; otherwise the
+     * user is told once that there is a newer version.
+     */
+    private fun checkForUpdate() {
+        val now = System.currentTimeMillis()
+        val settings = Settings.current
+        if (!settings.checkUpdates || now - updateCheckedAt < UPDATE_EVERY_MS) return
+        updateCheckedAt = now
+
+        scope.launch {
+            val release = Updates.check() ?: return@launch
+            val service = this@DeviceService
+            val onItsOwn = settings.autoUpdate && release.apkUrl != null &&
+                Updates.canInstall(service) && !Updates.isMetered(service)
+            if (onItsOwn) {
+                Updates.install(service)
+            } else if (release.version != announcedVersion) {
+                announcedVersion = release.version
+                notice(getString(R.string.update_available, release.version))
+            }
         }
     }
 
@@ -309,6 +341,18 @@ class DeviceService : Service() {
         notifications().notify(device.id.hashCode(), notification)
     }
 
+    /** A notification that is not about a device; it opens the application. */
+    private fun notice(text: String) {
+        val notification = Notification.Builder(this, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(text)
+            .setContentIntent(openApp(null))
+            .setAutoCancel(true)
+            .build()
+        runCatching { notifications().notify(NOTICE_ID, notification) }
+    }
+
     private fun statusNotification(text: String): Notification =
         Notification.Builder(this, CHANNEL_STATUS)
             .setSmallIcon(R.drawable.ic_notification)
@@ -345,6 +389,9 @@ class DeviceService : Service() {
         private const val SYSTEM_EVERY = 6
         private const val SAVE_EVERY = 60
         private const val STATUS_ID = 1
+        private const val NOTICE_ID = 3
+        private const val UPDATE_EVERY_MS = 24 * 60 * 60 * 1000L
+        private const val UPDATE_FIRST_MS = 10 * 60 * 1000L
         private const val CHANNEL_STATUS = "status"
         private const val CHANNEL_ALERTS = "alerts"
         private const val APPLE = 0x004C
@@ -389,10 +436,13 @@ class DeviceService : Service() {
     }
 }
 
-/** Starts the service when the phone starts, if the user wants that. */
+/**
+ * Starts the service when the phone starts, if the user wants that, and again after the
+ * application has been updated: an update stops everything that was running.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         Settings.load(context)
         if (Settings.current.startOnBoot) DeviceService.start(context)
     }

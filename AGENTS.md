@@ -17,13 +17,14 @@ The maintainer tests on Windows only. This application has been compiled and pac
 - **The release file name ends in `.apk`**, which is what the updater looks for.
 - Tooling is Gradle, Kotlin and Rust. No Python or Node.
 - Do not commit or push unless asked. The maintainer does that.
+- **Raise the version with every change that ships**, as `major.minor.patch`: patch for a fix, minor for a new capability, major for a break. The version is `btmanage.versionName` in `gradle.properties`. The version code comes from CI, and CI adds a fourth number by itself only when the same version is built again.
 - Calls outside the public Android interface (`BluetoothDevice.isConnected`, `getBatteryLevel`, the battery level broadcast) go through `runCatching` and have a fallback: they may vanish in any release.
 
 ## Interface
 
-Two designs, chosen in the settings and defined in `ui/Design.kt`: Material You (Material 3, colours from the wallpaper unless the user picks Bluetooth blue) and Fluent (the palette, corners and type sizes of the Windows application). Both run on the same Material 3 components; the design changes the colour scheme, shapes and typography.
+Four designs, chosen in the settings and defined in `ui/Design.kt`: Material You (Material 3, colours from the wallpaper unless the user picks Bluetooth blue), Fluent (the palette, corners and type sizes of the Windows application), Holo (Android 4.3) and Eclair (Android 2.1). All run on the same Material 3 components; a design changes the colour scheme, shapes and typography.
 
-- Screens must look right in both. Do not use `Card`, a button's default shape or `SegmentedButtonDefaults.itemShape` directly: use `Panel`, `buttonShape()` and `segmentShape()` from `ui/Design.kt`, which pick the right form.
+- Screens must look right in all of them. Do not use `Card`, a button's default shape or `SegmentedButtonDefaults.itemShape` directly: use `Panel`, `buttonShape()` and `segmentShape()` from `ui/Design.kt`, which pick the right form. Tab labels and section headers go through `caps()`, which Holo turns into capitals; the top bar takes `topBarColors()`.
 - Take colours from `MaterialTheme.colorScheme` only. A literal colour in a screen breaks one of the designs.
 - The widget has no Compose theme; its colours for each design are in `palette` in `widget/BatteryWidget.kt`.
 
@@ -52,7 +53,7 @@ An APK built this way has no core library and shows "The core library is missing
 | `app/src/main/kotlin/btmanage/core/Native.kt` | JNI declarations |
 | `…/data/Devices.kt` | The device list as a flow, over the core's hub; state on disk |
 | `…/data/Settings.kt` | Preferences, including the widget's configuration |
-| `…/data/Updates.kt` | The check for a newer release |
+| `…/data/Updates.kt` | The updater: check, download, hand-over to Android's package installer, and the receiver of its result |
 | `…/service/DeviceService.kt` | Scanning, paired devices, notifications, widget refresh; the boot receiver |
 | `…/ui/` | Screens and shared pieces: battery cells, meter, chart |
 | `…/widget/BatteryWidget.kt` | The Glance widget |
