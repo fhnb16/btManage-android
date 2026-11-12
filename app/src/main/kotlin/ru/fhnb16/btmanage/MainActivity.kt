@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -36,8 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ru.fhnb16.btmanage.data.Devices
+import kotlinx.coroutines.launch
 import ru.fhnb16.btmanage.data.Settings
-import ru.fhnb16.btmanage.data.UpdateInfo
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.service.DeviceService
 import ru.fhnb16.btmanage.ui.AppTheme
@@ -46,6 +47,8 @@ import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.ui.DevicesScreen
 import ru.fhnb16.btmanage.ui.SettingsScreen
 import ru.fhnb16.btmanage.ui.buttonShape
+import ru.fhnb16.btmanage.ui.caps
+import ru.fhnb16.btmanage.ui.topBarColors
 
 class MainActivity : ComponentActivity() {
     /** The device a notification or a widget asked for. */
@@ -68,6 +71,17 @@ class MainActivity : ComponentActivity() {
         requested = intent.getStringExtra(EXTRA_DEVICE)
     }
 
+    // While the application is on screen Android's installation dialog may be opened directly.
+    override fun onStart() {
+        super.onStart()
+        Updates.foreground = true
+    }
+
+    override fun onStop() {
+        Updates.foreground = false
+        super.onStop()
+    }
+
     companion object {
         const val EXTRA_DEVICE = "device"
     }
@@ -81,15 +95,33 @@ private fun App(requested: String?, select: (String?) -> Unit) {
     val devices by Devices.list.collectAsState()
     var granted by remember { mutableStateOf(DeviceService.hasPermissions(context)) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    val update by Updates.state.collectAsState()
+    val scope = rememberCoroutineScope()
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         granted = DeviceService.hasPermissions(context)
         if (granted) DeviceService.start(context)
     }
 
+    // Android's screen where the user lets the application install packages. Coming back
+    // from it with the right granted, the update that was waiting for it goes ahead.
+    val installAccess = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (Updates.canInstall(context)) scope.launch { Updates.install(context) }
+    }
+    val askInstallAccess: () -> Unit = {
+        Settings.update(context) { it.copy(installAsked = true) }
+        runCatching { installAccess.launch(Updates.permissionIntent(context)) }
+    }
+    val startUpdate: () -> Unit = {
+        if (Updates.canInstall(context)) scope.launch { Updates.install(context) } else askInstallAccess()
+    }
+
     LaunchedEffect(settings.checkUpdates) {
-        if (settings.checkUpdates) update = Updates.check()
+        if (settings.checkUpdates && Updates.check()?.apkUrl != null && Settings.current.autoUpdate) {
+            // Install on its own. Without the right to, ask Android for it once; after that
+            // the update waits for the user in the banner.
+            if (Updates.canInstall(context) || !Settings.current.installAsked) startUpdate()
+        }
     }
 
     val selected = requested?.let { id -> devices.firstOrNull { it.id == id } }
@@ -108,11 +140,12 @@ private fun App(requested: String?, select: (String?) -> Unit) {
                                 TextButton(onClick = { select(null) }) { Text(stringResource(R.string.back)) }
                             }
                         },
+                        colors = topBarColors(),
                     )
                     if (selected == null && granted && Devices.available) {
                         PrimaryTabRow(selectedTabIndex = tab) {
-                            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.tab_devices)) })
-                            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.tab_settings)) })
+                            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.tab_devices).caps()) })
+                            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.tab_settings).caps()) })
                         }
                     }
                 }
@@ -132,8 +165,8 @@ private fun App(requested: String?, select: (String?) -> Unit) {
                     permissions.launch(wanted.toTypedArray())
                 }
                 selected != null -> DeviceDetail(selected, settings, modifier)
-                tab == 0 -> DevicesScreen(devices, settings, update, modifier) { select(it) }
-                else -> SettingsScreen(devices, settings, update, modifier) { update = it }
+                tab == 0 -> DevicesScreen(devices, settings, update, startUpdate, modifier) { select(it) }
+                else -> SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, modifier)
             }
         }
     }

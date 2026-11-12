@@ -31,13 +31,20 @@ data class SettingsData(
     val notifyLow: Boolean = true,
     /** At or below this level, and not charging, a battery counts as low. */
     val lowThreshold: Int = 20,
-    /** The look of the application: "material" for Material You, "fluent" for the Windows look. */
+    /**
+     * The look of the application: "material" for Material You, "fluent" for the Windows
+     * look, "holo" for Android 4.3, "eclair" for Android 2.1.
+     */
     val design: String = "material",
     val theme: ThemeChoice = "system",
     val accent: AccentChoice = "system",
     /** Start watching the devices when the phone starts. */
     val startOnBoot: Boolean = true,
     val checkUpdates: Boolean = true,
+    /** Download and install a newer release without being asked. */
+    val autoUpdate: Boolean = true,
+    /** The user has been shown Android's screen for letting the application install packages. */
+    val installAsked: Boolean = false,
     /** Devices the user wants no notifications about. */
     val muted: Set<String> = emptySet(),
     val widget: WidgetConfig = WidgetConfig(),
@@ -69,6 +76,8 @@ object Settings {
             accent = prefs.getString("accent", defaults.accent)!!,
             startOnBoot = prefs.getBoolean("startOnBoot", defaults.startOnBoot),
             checkUpdates = prefs.getBoolean("checkUpdates", defaults.checkUpdates),
+            autoUpdate = prefs.getBoolean("autoUpdate", defaults.autoUpdate),
+            installAsked = prefs.getBoolean("installAsked", defaults.installAsked),
             muted = prefs.getStringSet("muted", emptySet())!!.toSet(),
             widget = WidgetConfig(
                 count = prefs.getInt("widget.count", widget.count),
@@ -95,6 +104,8 @@ object Settings {
             putString("accent", next.accent)
             putBoolean("startOnBoot", next.startOnBoot)
             putBoolean("checkUpdates", next.checkUpdates)
+            putBoolean("autoUpdate", next.autoUpdate)
+            putBoolean("installAsked", next.installAsked)
             putStringSet("muted", next.muted)
             putInt("widget.count", next.widget.count)
             putString("widget.layout", next.widget.layout)

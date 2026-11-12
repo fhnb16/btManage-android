@@ -29,14 +29,16 @@ import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
-import ru.fhnb16.btmanage.data.UpdateInfo
+import ru.fhnb16.btmanage.data.UpdateState
+import ru.fhnb16.btmanage.data.release
 
 /** Every device the application knows: connected ones first, then those nearby, then the rest. */
 @Composable
 fun DevicesScreen(
     devices: List<Device>,
     settings: SettingsData,
-    update: UpdateInfo?,
+    update: UpdateState,
+    onInstall: () -> Unit,
     modifier: Modifier = Modifier,
     open: (String) -> Unit,
 ) {
@@ -48,9 +50,9 @@ fun DevicesScreen(
     ).filter { it.second.isNotEmpty() }
 
     LazyColumn(modifier) {
-        if (update != null) {
+        if (update.release != null) {
             item {
-                UpdateBanner(update, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                UpdateBanner(update, onInstall, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             }
         }
         if (devices.isEmpty()) {
@@ -68,7 +70,7 @@ fun DevicesScreen(
         for ((title, group) in groups) {
             item(key = title) {
                 Text(
-                    text = stringResource(title),
+                    text = stringResource(title).caps(),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 4.dp),
@@ -102,21 +104,41 @@ fun DevicesScreen(
     }
 }
 
-/** A newer release: where to read about it and where to get it. */
+/**
+ * A newer release and how far the application has got with it: found, downloading, handed
+ * to Android, or failed. Shows nothing while there is no newer release.
+ */
 @Composable
-fun UpdateBanner(update: UpdateInfo, modifier: Modifier = Modifier) {
+fun UpdateBanner(update: UpdateState, onInstall: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val release = update.release ?: return
+    val openPage = {
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.pageUrl))) }
+        Unit
+    }
+
     Panel(modifier.fillMaxWidth()) {
         Row(
             Modifier.padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.update_available, update.version), Modifier.weight(1f))
-            TextButton(onClick = {
-                val target = update.apkUrl ?: update.pageUrl
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
-            }) {
-                Text(stringResource(R.string.update_download))
+            Text(
+                text = when (update) {
+                    is UpdateState.Downloading -> stringResource(R.string.update_downloading, update.percent)
+                    is UpdateState.Installing -> stringResource(R.string.update_installing)
+                    is UpdateState.Failed -> stringResource(R.string.update_failed)
+                    else -> stringResource(R.string.update_available, release.version)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 12.dp),
+            )
+            when {
+                // A release without an APK, or one that would not install: the page is the way out.
+                update is UpdateState.Failed || (update is UpdateState.Available && release.apkUrl == null) ->
+                    TextButton(onClick = openPage) { Text(stringResource(R.string.update_page)) }
+                update is UpdateState.Available ->
+                    TextButton(onClick = onInstall) { Text(stringResource(R.string.update_install)) }
             }
         }
     }

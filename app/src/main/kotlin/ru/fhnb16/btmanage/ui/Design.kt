@@ -10,10 +10,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBarColors
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -34,18 +37,29 @@ import androidx.compose.ui.unit.sp
 import ru.fhnb16.btmanage.data.SettingsData
 
 /**
- * The two looks of the application.
+ * The looks of the application.
  *
- * Material You is Android's own: colours derived from the wallpaper, rounded shapes, tonal
- * surfaces. Fluent follows the Windows application: neutral grey surfaces, cards with a
- * hairline border, small corner radii, the Windows type ramp.
+ * - Material You is Android's own: colours derived from the wallpaper, rounded shapes, tonal
+ *   surfaces.
+ * - Fluent follows the Windows application: neutral grey surfaces, cards with a hairline
+ *   border, small corner radii, the Windows type ramp.
+ * - Holo recalls Android 4.3: black or pale grey, the Holo blue, thin figures, headers in
+ *   capitals.
+ * - Eclair recalls Android 2.1: black or white, the orange highlight, a grey title bar.
+ *
+ * All of them run on the same Material 3 components. A design changes their colours, shapes
+ * and typography; the two historical ones are a likeness, not a rebuild of the old widgets.
  */
-enum class DesignStyle { MATERIAL, FLUENT }
+enum class DesignStyle { MATERIAL, FLUENT, HOLO, ECLAIR }
 
 val LocalDesign = staticCompositionLocalOf { DesignStyle.MATERIAL }
 
-fun designOf(settings: SettingsData): DesignStyle =
-    if (settings.design == "fluent") DesignStyle.FLUENT else DesignStyle.MATERIAL
+fun designOf(settings: SettingsData): DesignStyle = when (settings.design) {
+    "fluent" -> DesignStyle.FLUENT
+    "holo" -> DesignStyle.HOLO
+    "eclair" -> DesignStyle.ECLAIR
+    else -> DesignStyle.MATERIAL
+}
 
 /** The application in the design, theme and accent the user chose. */
 @Composable
@@ -56,15 +70,28 @@ fun AppTheme(settings: SettingsData, content: @Composable () -> Unit) {
         else -> isSystemInDarkTheme()
     }
     val design = designOf(settings)
+    val bluetooth = settings.accent == "bluetooth"
     val colors = when (design) {
         DesignStyle.MATERIAL -> materialColors(settings.accent, dark)
         DesignStyle.FLUENT -> fluentColors(accentColor(settings.accent, dark), dark)
+        DesignStyle.HOLO -> holoColors(bluetooth, dark)
+        DesignStyle.ECLAIR -> eclairColors(bluetooth, dark)
     }
     CompositionLocalProvider(LocalDesign provides design) {
         MaterialTheme(
             colorScheme = colors,
-            shapes = if (design == DesignStyle.FLUENT) FluentShapes else Shapes(),
-            typography = if (design == DesignStyle.FLUENT) FluentTypography else Typography(),
+            shapes = when (design) {
+                DesignStyle.MATERIAL -> Shapes()
+                DesignStyle.FLUENT -> FluentShapes
+                DesignStyle.HOLO -> HoloShapes
+                DesignStyle.ECLAIR -> EclairShapes
+            },
+            typography = when (design) {
+                DesignStyle.MATERIAL -> Typography()
+                DesignStyle.FLUENT -> FluentTypography
+                DesignStyle.HOLO -> HoloTypography
+                DesignStyle.ECLAIR -> EclairTypography
+            },
             content = content,
         )
     }
@@ -266,15 +293,203 @@ private val FluentTypography: Typography = Typography().let { base ->
     )
 }
 
-// --- Pieces that differ between the two looks ---------------------------------------------
+// --- Holo, after Android 4.3 --------------------------------------------------------------
 
 /**
- * A group of content: a tonal card in Material, a flat card with a hairline border in
- * Fluent.
+ * The Holo palette: black with white text in the dark theme, pale grey with dark text in
+ * the light one, and the Holo blue. Bluetooth blue replaces it when chosen as the accent.
+ */
+private fun holoColors(bluetooth: Boolean, dark: Boolean): ColorScheme {
+    return if (dark) {
+        val base = Color(0xFF000000)
+        val accent = if (bluetooth) Color(0xFF8CC4FF) else Color(0xFF33B5E5)
+        darkColorScheme(
+            primary = accent,
+            onPrimary = Color(0xFF000000),
+            primaryContainer = lerp(base, accent, 0.35f),
+            onPrimaryContainer = Color(0xFFFFFFFF),
+            secondary = accent,
+            onSecondary = Color(0xFF000000),
+            // Holo marks what is pressed or chosen with a wash of its blue.
+            secondaryContainer = lerp(base, accent, 0.40f),
+            onSecondaryContainer = Color(0xFFFFFFFF),
+            tertiary = accent,
+            onTertiary = Color(0xFF000000),
+            background = base,
+            onBackground = Color(0xFFF3F3F3),
+            surface = base,
+            onSurface = Color(0xFFF3F3F3),
+            surfaceVariant = Color(0xFF222222),
+            onSurfaceVariant = Color(0xFFBEBEBE),
+            outline = Color(0xFF8A8A8A),
+            outlineVariant = Color(0xFF333333),
+            error = Color(0xFFFF4444),
+            onError = Color(0xFF000000),
+            surfaceContainerLowest = Color(0xFF000000),
+            surfaceContainerLow = Color(0xFF161616),
+            surfaceContainer = Color(0xFF1C1C1C),
+            // The action bar.
+            surfaceContainerHigh = Color(0xFF222222),
+            surfaceContainerHighest = Color(0xFF3A3A3A),
+        )
+    } else {
+        val base = Color(0xFFF3F3F3)
+        val accent = if (bluetooth) Color(0xFF0067D6) else Color(0xFF0099CC)
+        lightColorScheme(
+            primary = accent,
+            onPrimary = Color(0xFFFFFFFF),
+            primaryContainer = lerp(base, accent, 0.25f),
+            onPrimaryContainer = Color(0xFF333333),
+            secondary = accent,
+            onSecondary = Color(0xFFFFFFFF),
+            secondaryContainer = lerp(base, accent, 0.30f),
+            onSecondaryContainer = Color(0xFF333333),
+            tertiary = accent,
+            onTertiary = Color(0xFFFFFFFF),
+            background = base,
+            onBackground = Color(0xFF333333),
+            surface = base,
+            onSurface = Color(0xFF333333),
+            surfaceVariant = Color(0xFFE5E5E5),
+            onSurfaceVariant = Color(0xFF737373),
+            outline = Color(0xFF8A8A8A),
+            outlineVariant = Color(0xFFD6D6D6),
+            error = Color(0xFFCC0000),
+            onError = Color(0xFFFFFFFF),
+            surfaceContainerLowest = Color(0xFFFFFFFF),
+            surfaceContainerLow = Color(0xFFFFFFFF),
+            surfaceContainer = Color(0xFFEAEAEA),
+            surfaceContainerHigh = Color(0xFFDDDDDD),
+            surfaceContainerHighest = Color(0xFFC8C8C8),
+        )
+    }
+}
+
+/** Holo is all but square. */
+private val HoloShapes = Shapes(
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(2.dp),
+    medium = RoundedCornerShape(2.dp),
+    large = RoundedCornerShape(2.dp),
+    extraLarge = RoundedCornerShape(2.dp),
+)
+
+/** Roboto as Holo set it: large figures in the light weight, headers and tabs bold. */
+private val HoloTypography: Typography = Typography().let { base ->
+    base.copy(
+        headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.Light, letterSpacing = 0.sp),
+        titleLarge = base.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
+        titleMedium = base.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
+        titleSmall = base.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        labelLarge = base.labelLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        labelMedium = base.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+    )
+}
+
+// --- Eclair, after Android 2.1 ------------------------------------------------------------
+
+/**
+ * The palette of Android 2.1: black with white text, or white with black text, and the
+ * orange of its highlights. Bluetooth blue replaces the orange when chosen as the accent.
+ */
+private fun eclairColors(bluetooth: Boolean, dark: Boolean): ColorScheme {
+    return if (dark) {
+        val base = Color(0xFF000000)
+        val accent = if (bluetooth) Color(0xFF8CC4FF) else Color(0xFFFF9000)
+        darkColorScheme(
+            primary = accent,
+            onPrimary = Color(0xFF000000),
+            primaryContainer = accent,
+            onPrimaryContainer = Color(0xFF000000),
+            secondary = accent,
+            onSecondary = Color(0xFF000000),
+            // The chosen item is filled with the highlight, as a focused list row was.
+            secondaryContainer = accent,
+            onSecondaryContainer = Color(0xFF000000),
+            tertiary = accent,
+            onTertiary = Color(0xFF000000),
+            background = base,
+            onBackground = Color(0xFFFFFFFF),
+            surface = base,
+            onSurface = Color(0xFFFFFFFF),
+            surfaceVariant = Color(0xFF2A2A2A),
+            onSurfaceVariant = Color(0xFFA8A8A8),
+            outline = Color(0xFF808080),
+            outlineVariant = Color(0xFF404040),
+            error = Color(0xFFFF5050),
+            onError = Color(0xFF000000),
+            surfaceContainerLowest = Color(0xFF000000),
+            surfaceContainerLow = Color(0xFF101010),
+            surfaceContainer = Color(0xFF1A1A1A),
+            surfaceContainerHigh = Color(0xFF2A2A2A),
+            surfaceContainerHighest = Color(0xFF4A4A4A),
+        )
+    } else {
+        val accent = if (bluetooth) Color(0xFF0067D6) else Color(0xFFE07800)
+        lightColorScheme(
+            primary = accent,
+            onPrimary = if (bluetooth) Color(0xFFFFFFFF) else Color(0xFF000000),
+            primaryContainer = accent,
+            onPrimaryContainer = if (bluetooth) Color(0xFFFFFFFF) else Color(0xFF000000),
+            secondary = accent,
+            onSecondary = if (bluetooth) Color(0xFFFFFFFF) else Color(0xFF000000),
+            secondaryContainer = accent,
+            onSecondaryContainer = if (bluetooth) Color(0xFFFFFFFF) else Color(0xFF000000),
+            tertiary = accent,
+            onTertiary = Color(0xFF000000),
+            background = Color(0xFFFFFFFF),
+            onBackground = Color(0xFF000000),
+            surface = Color(0xFFFFFFFF),
+            onSurface = Color(0xFF000000),
+            surfaceVariant = Color(0xFFEBEBEB),
+            onSurfaceVariant = Color(0xFF5A5A5A),
+            outline = Color(0xFF808080),
+            outlineVariant = Color(0xFFC8C8C8),
+            error = Color(0xFFCC0000),
+            onError = Color(0xFFFFFFFF),
+            surfaceContainerLowest = Color(0xFFFFFFFF),
+            surfaceContainerLow = Color(0xFFF4F4F4),
+            surfaceContainer = Color(0xFFEBEBEB),
+            surfaceContainerHigh = Color(0xFFE0E0E0),
+            surfaceContainerHighest = Color(0xFFC8C8C8),
+        )
+    }
+}
+
+/** Buttons had slightly rounded corners; everything else was square. */
+private val EclairShapes = Shapes(
+    extraSmall = RoundedCornerShape(3.dp),
+    small = RoundedCornerShape(3.dp),
+    medium = RoundedCornerShape(0.dp),
+    large = RoundedCornerShape(0.dp),
+    extraLarge = RoundedCornerShape(0.dp),
+)
+
+/** Android 2.1 set its titles in bold and knew no letter spacing. */
+private val EclairTypography: Typography = Typography().let { base ->
+    base.copy(
+        headlineMedium = base.headlineMedium.copy(letterSpacing = 0.sp),
+        titleLarge = base.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        titleMedium = base.titleMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        titleSmall = base.titleSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        labelLarge = base.labelLarge.copy(letterSpacing = 0.sp),
+    )
+}
+
+/** The title bar of Android 2.1 was dark grey in the light theme and the dark one alike. */
+private val EclairTitleBar = Color(0xFF4A4A4A)
+
+// --- Pieces that differ between the looks -------------------------------------------------
+
+/**
+ * A group of content: a tonal card in Material, a flat panel with a hairline border in the
+ * other designs.
  */
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    if (LocalDesign.current == DesignStyle.FLUENT) {
+    if (LocalDesign.current == DesignStyle.MATERIAL) {
+        Card(modifier = modifier, content = content)
+    } else {
         Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.medium,
@@ -283,21 +498,52 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
         ) {
             Column(content = content)
         }
-    } else {
-        Card(modifier = modifier, content = content)
     }
 }
 
-/** Shape of buttons: the pill of Material, or the 4 dp corners of Windows. */
+/** The corners of buttons and segmented rows, or null for the pills of Material. */
 @Composable
-fun buttonShape(): Shape =
-    if (LocalDesign.current == DesignStyle.FLUENT) FluentControlShape else ButtonDefaults.shape
+private fun controlShape(): CornerBasedShape? = when (LocalDesign.current) {
+    DesignStyle.MATERIAL -> null
+    DesignStyle.FLUENT -> FluentControlShape
+    DesignStyle.HOLO -> RoundedCornerShape(2.dp)
+    DesignStyle.ECLAIR -> RoundedCornerShape(3.dp)
+}
+
+/** Shape of buttons: the pill of Material, or the small corners of the other designs. */
+@Composable
+fun buttonShape(): Shape = controlShape() ?: ButtonDefaults.shape
 
 /** Shape of one option in a segmented row. */
 @Composable
-fun segmentShape(index: Int, count: Int): Shape =
-    if (LocalDesign.current == DesignStyle.FLUENT) {
-        SegmentedButtonDefaults.itemShape(index = index, count = count, baseShape = FluentControlShape)
+fun segmentShape(index: Int, count: Int): Shape {
+    val base = controlShape()
+    return if (base != null) {
+        SegmentedButtonDefaults.itemShape(index = index, count = count, baseShape = base)
     } else {
         SegmentedButtonDefaults.itemShape(index = index, count = count)
     }
+}
+
+/** Holo set its tabs and section headers in capitals; the other designs leave text as it is. */
+@Composable
+fun String.caps(): String = if (LocalDesign.current == DesignStyle.HOLO) uppercase() else this
+
+/** Colours of the top bar: the grey title bar of Android 2.1, the action bar of Holo. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun topBarColors(): TopAppBarColors {
+    val scheme = MaterialTheme.colorScheme
+    return when (LocalDesign.current) {
+        DesignStyle.ECLAIR -> TopAppBarDefaults.topAppBarColors(
+            containerColor = EclairTitleBar,
+            titleContentColor = Color.White,
+            navigationIconContentColor = Color.White,
+        )
+        DesignStyle.HOLO -> TopAppBarDefaults.topAppBarColors(
+            containerColor = scheme.surfaceContainerHigh,
+            titleContentColor = scheme.onSurface,
+        )
+        else -> TopAppBarDefaults.topAppBarColors()
+    }
+}

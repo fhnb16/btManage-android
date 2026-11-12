@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -40,8 +41,9 @@ import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
-import ru.fhnb16.btmanage.data.UpdateInfo
+import ru.fhnb16.btmanage.data.UpdateState
 import ru.fhnb16.btmanage.data.Updates
+import ru.fhnb16.btmanage.data.release
 import ru.fhnb16.btmanage.data.WidgetConfig
 import ru.fhnb16.btmanage.widget.BatteryWidget
 
@@ -50,9 +52,10 @@ import ru.fhnb16.btmanage.widget.BatteryWidget
 fun SettingsScreen(
     devices: List<Device>,
     settings: SettingsData,
-    update: UpdateInfo?,
+    update: UpdateState,
+    onInstall: () -> Unit,
+    askInstallAccess: () -> Unit,
     modifier: Modifier = Modifier,
-    onUpdate: (UpdateInfo?) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf(
@@ -66,7 +69,7 @@ fun SettingsScreen(
         // Scrollable, so the labels keep their full width on a narrow screen.
         ScrollableTabRow(selectedTabIndex = tab, edgePadding = 16.dp) {
             tabs.forEachIndexed { index, title ->
-                Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(title)) })
+                Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(title).caps()) })
             }
         }
 
@@ -82,7 +85,7 @@ fun SettingsScreen(
                     0 -> GeneralPage(settings)
                     1 -> AppearancePage(settings)
                     2 -> WidgetPage(devices, settings)
-                    else -> AboutPage(settings, update, onUpdate)
+                    else -> AboutPage(settings, update, onInstall, askInstallAccess)
                 }
             }
         }
@@ -116,16 +119,34 @@ private fun AppearancePage(settings: SettingsData) {
     fun change(edit: (SettingsData) -> SettingsData) = Settings.update(context, edit)
 
     Group(R.string.setting_design) {
-        Choice(
-            null,
-            listOf("material" to R.string.design_material, "fluent" to R.string.design_fluent).labelled(),
-            settings.design,
-        ) { value ->
-            change { it.copy(design = value) }
-            // The widget follows the design of the application.
-            scope.launch { runCatching { BatteryWidget().updateAll(context) } }
+        val designs = listOf(
+            Triple("material", R.string.design_material, R.string.design_material_note),
+            Triple("fluent", R.string.design_fluent, R.string.design_fluent_note),
+            Triple("holo", R.string.design_holo, R.string.design_holo_note),
+            Triple("eclair", R.string.design_eclair, R.string.design_eclair_note),
+        )
+        for ((value, title, note) in designs) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        change { it.copy(design = value) }
+                        // The widget follows the design of the application.
+                        scope.launch { runCatching { BatteryWidget().updateAll(context) } }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = settings.design == value,
+                    onClick = null,
+                    modifier = Modifier.padding(end = 12.dp, top = 8.dp, bottom = 8.dp),
+                )
+                Column {
+                    Text(stringResource(title))
+                    Note(note)
+                }
+            }
         }
-        Note(if (settings.design == "fluent") R.string.design_fluent_note else R.string.design_material_note)
     }
 
     Group(R.string.settings_colours) {
@@ -195,7 +216,12 @@ private fun WidgetPage(devices: List<Device>, settings: SettingsData) {
 }
 
 @Composable
-private fun AboutPage(settings: SettingsData, update: UpdateInfo?, onUpdate: (UpdateInfo?) -> Unit) {
+private fun AboutPage(
+    settings: SettingsData,
+    update: UpdateState,
+    onInstall: () -> Unit,
+    askInstallAccess: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -203,29 +229,33 @@ private fun AboutPage(settings: SettingsData, update: UpdateInfo?, onUpdate: (Up
         Toggle(R.string.setting_auto_update, settings.checkUpdates) { on ->
             Settings.update(context) { it.copy(checkUpdates = on) }
         }
-        var checking by remember { mutableStateOf(false) }
-        var checked by remember { mutableStateOf(false) }
-        if (update != null) {
-            UpdateBanner(update)
+        Toggle(R.string.setting_auto_install, settings.autoUpdate) { on ->
+            Settings.update(context) { it.copy(autoUpdate = on) }
+            // Installing on its own needs Android's leave to install packages: ask for it now.
+            if (on && !Updates.canInstall(context)) askInstallAccess()
+        }
+        Note(R.string.setting_auto_install_hint)
+
+        if (update.release != null) {
+            UpdateBanner(update, onInstall)
         } else {
+            val checking = update is UpdateState.Checking
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(
                     enabled = !checking,
                     shape = buttonShape(),
-                    onClick = {
-                        checking = true
-                        scope.launch {
-                            onUpdate(Updates.check())
-                            checking = false
-                            checked = true
-                        }
-                    },
+                    onClick = { scope.launch { Updates.check() } },
                 ) {
                     Text(stringResource(if (checking) R.string.update_checking else R.string.update_check))
                 }
-                if (checked && !checking) {
+                val status = when (update) {
+                    is UpdateState.UpToDate -> R.string.update_none
+                    is UpdateState.Failed -> R.string.update_check_failed
+                    else -> null
+                }
+                if (status != null) {
                     Text(
-                        stringResource(R.string.update_none),
+                        stringResource(status),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -256,7 +286,7 @@ private fun List<Pair<String, Int>>.labelled(): List<Pair<String, String>> = map
 @Composable
 private fun Group(title: Int, content: @Composable ColumnScope.() -> Unit) {
     Text(
-        stringResource(title),
+        stringResource(title).caps(),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 4.dp, top = 8.dp),
