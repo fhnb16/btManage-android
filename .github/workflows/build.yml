@@ -1,9 +1,10 @@
 name: Build
 
 # Every push and pull request builds the application and keeps the APK as an artifact.
-# Pushes to main/master publish a release using the base version from gradle.properties,
-# with a numeric suffix when that version has already been used. Pushing a "v1.2.3" tag
-# also publishes a release.
+# Pushes to main/master, and manual runs on them, publish a release using the base version
+# from gradle.properties, with a numeric suffix when that version has already been used.
+# Every such build gets its own tag; a re-run of the same commit reuses it. Pushing a
+# "v1.2.3" tag also publishes a release.
 #
 # With the signing secrets set (see README, "Signing") the release build is signed with your
 # key. Without them a debug build is produced instead.
@@ -34,8 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -48,18 +51,31 @@ jobs:
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
+          release=false
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             version="${GITHUB_REF_NAME#v}"
-          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/* ]]; then
+            release=true
+          elif [[ "$GITHUB_REF" == refs/heads/main || "$GITHUB_REF" == refs/heads/master ]] \
+            && [[ "$GITHUB_EVENT_NAME" == push || "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            # A push to the main branch and a manual run on it both release.
+            release=true
             base_version="$(sed -n 's/^btmanage\.versionName=\(.*\)$/\1/p' btManage-android/gradle.properties | head -n 1 | tr -d '[:space:]')"
             if [[ -z "$base_version" ]]; then
               echo "::error::Could not read btmanage.versionName from gradle.properties."
               exit 1
             fi
 
-            tags="$(gh api --paginate "repos/$GH_REPO/tags?per_page=100" --jq '.[].name')"
+            listing="$(gh api --paginate "repos/$GH_REPO/tags?per_page=100" --jq '.[] | "\(.name) \(.commit.sha)"')"
+            tags="$(cut -d ' ' -f 1 <<< "$listing")"
+
+            # A re-run of the same commit keeps the tag its first run reserved, so it
+            # completes that release instead of reserving another one.
+            escaped="${base_version//./\\.}"
+            existing="$(awk -v sha="$GITHUB_SHA" '$2 == sha { print $1 }' <<< "$listing" \
+              | grep -E "^v${escaped}(\.[0-9]+)?$" | head -n 1 || true)"
+
             suffix=0
-            while :; do
+            while [[ -z "$existing" ]]; do
               if (( suffix == 0 )); then
                 version="$base_version"
               else
@@ -83,6 +99,10 @@ jobs:
                 exit 1
               fi
             done
+            if [[ -n "$existing" ]]; then
+              version="${existing#v}"
+              echo "Re-run of $GITHUB_SHA: keeping $existing" >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             version="0.0.${GITHUB_RUN_NUMBER}"
           fi
@@ -92,7 +112,8 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Release version: $version" >> "$GITHUB_STEP_SUMMARY"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "Version: $version, release: $release" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     name: Android
@@ -100,6 +121,7 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       HAS_CORE_TOKEN: ${{ secrets.CORE_REPO_TOKEN != '' }}
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
@@ -188,11 +210,14 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+  # Runs when prepare reserved a tag (a "v*" tag, or a push or manual run on main/master).
+  # A re-run of the build adds its file to the same release.
   release:
     name: Release
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+    if: ${{ !cancelled() && needs.prepare.outputs.release == 'true' && needs.build.result == 'success' }}
     needs: [prepare, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -207,6 +232,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          if ! compgen -G "dist/*" >/dev/null; then
+            echo "::error::The build left no files to release."
+            exit 1
+          fi
           tag="v$VERSION"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber
