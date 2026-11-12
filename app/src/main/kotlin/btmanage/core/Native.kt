@@ -48,6 +48,31 @@ object Native {
         nowMs: Long,
     ): String?
 
+    /**
+     * One battery of a device. [role] 0: left earbud, 1: right, 2: case, 3: the single
+     * battery. [source] 1: Android's own record, otherwise as in [hubBattery].
+     */
+    external fun hubCell(
+        handle: Long,
+        deviceId: String,
+        role: Int,
+        source: Int,
+        percent: Int,
+        charging: Boolean,
+        nowMs: Long,
+    ): String?
+
+    /** A packet AirPods sent over their accessory protocol. */
+    external fun hubAap(handle: Long, deviceId: String, packet: ByteArray, nowMs: Long): String?
+
+    /**
+     * A packet to send to AirPods, in hexadecimal. [kind] 0: the handshake, 1: the features,
+     * 2: the request for notifications, 3: the noise mode [value] (1 off, 2 noise
+     * cancellation, 3 transparency, 4 adaptive), 4: conversation awareness, on when [value]
+     * is 1.
+     */
+    external fun aapPacket(kind: Int, value: Int): String?
+
     external fun hubSnapshot(handle: Long, nowMs: Long): String?
 
     external fun hubHistory(handle: Long, deviceId: String, sinceMs: Long): String?

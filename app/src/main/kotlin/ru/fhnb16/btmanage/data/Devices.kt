@@ -10,6 +10,19 @@ import java.io.File
 
 enum class Role { LEFT, RIGHT, CASE, MAIN }
 
+/** How headphones treat the sound around the wearer. [code] is the number the core takes. */
+enum class NoiseMode(val wire: String, val code: Int) {
+    OFF("off", 1),
+    NOISE_CANCELLATION("noise_cancellation", 2),
+    TRANSPARENCY("transparency", 3),
+    ADAPTIVE("adaptive", 4),
+    ;
+
+    companion object {
+        fun of(wire: String): NoiseMode? = entries.firstOrNull { it.wire == wire }
+    }
+}
+
 /** One battery: an earbud, a case, or the single battery of a device. */
 data class Cell(
     val role: Role,
@@ -42,6 +55,12 @@ data class Device(
     val rssi: Int?,
     val estimateMin: Int?,
     val profiles: List<String>,
+    /** The noise modes the device offers while connected; empty for most devices. */
+    val noiseModes: List<NoiseMode> = emptyList(),
+    /** The mode in effect, once the device has said. */
+    val noiseMode: NoiseMode? = null,
+    /** Whether conversation awareness is on, once the device has said. */
+    val awareness: Boolean? = null,
 ) {
     val isActive: Boolean get() = connected || nearby
     val hasEarbudCells: Boolean get() = cells.any { it.role == Role.LEFT || it.role == Role.RIGHT }
@@ -65,6 +84,7 @@ data class RoleHistory(val role: Role, val points: List<HistoryPoint>)
 object Devices {
     const val ADV_MANUFACTURER = 0
     const val ADV_SERVICE_DATA = 1
+    const val SOURCE_SYSTEM = 1
     const val SOURCE_GATT = 2
 
     private const val STATE_FILE = "state.json"
@@ -104,6 +124,34 @@ object Devices {
     /** A level read from the device itself; [source] is one of the core's, such as [SOURCE_GATT]. */
     fun battery(deviceId: String, source: Int, percent: Int, charging: Boolean) =
         publish(call { Native.hubBattery(it, deviceId, source, percent, charging, now()) })
+
+    /**
+     * The level of one battery of a device, learned from somewhere other than an
+     * advertisement. The order of [Role] is the numbering the core uses.
+     */
+    fun cell(deviceId: String, role: Role, source: Int, percent: Int, charging: Boolean) =
+        publish(
+            call {
+                try {
+                    Native.hubCell(it, deviceId, role.ordinal, source, percent, charging, now())
+                } catch (_: UnsatisfiedLinkError) {
+                    // A core library older than this call.
+                    null
+                }
+            },
+        )
+
+    /** A packet AirPods sent over their accessory protocol: levels, noise mode, conversation awareness. */
+    fun aap(deviceId: String, packet: ByteArray) =
+        publish(
+            call {
+                try {
+                    Native.hubAap(it, deviceId, packet, now())
+                } catch (_: UnsatisfiedLinkError) {
+                    null
+                }
+            },
+        )
 
     /** Re-reads the list, so ages move on and devices that left drop out. */
     fun refresh() = publish(call { Native.hubSnapshot(it, now()) })
@@ -187,6 +235,11 @@ object Devices {
                 rssi = if (device.isNull("rssi")) null else device.getInt("rssi"),
                 estimateMin = if (device.isNull("estimate_min")) null else device.getInt("estimate_min"),
                 profiles = List(profiles.length()) { i -> profiles.getString(i) },
+                noiseModes = device.optJSONArray("noise_modes")?.let { modes ->
+                    List(modes.length()) { i -> NoiseMode.of(modes.getString(i)) }.filterNotNull()
+                }.orEmpty(),
+                noiseMode = device.optString("noise_mode").let(NoiseMode::of),
+                awareness = if (device.has("awareness")) device.getBoolean("awareness") else null,
             )
         }
     }

@@ -153,7 +153,7 @@
     <string name="link_failed">It did not work. The reason is in Settings, About, Diagnostics</string>
 
     <string name="settings_access">Extended access</string>
-    <string name="access_note">Android lets only system apps connect or disconnect a device and read its audio codec. btManage can borrow those rights from Shizuku or from root, and uses them for nothing else</string>
+    <string name="access_note">Android lets only system apps connect or disconnect a device, read its audio codec, and read the level of each earbud and of the case that it keeps for headphones of many makers. btManage can borrow those rights from Shizuku or from root, and uses them for nothing else</string>
     <string name="access_shizuku" translatable="false">Shizuku</string>
     <string name="access_shizuku_allowed">Allowed</string>
     <string name="access_shizuku_running">Running, not allowed yet</string>
@@ -165,4 +165,30 @@
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="diagnostics_note">What the app has seen since it started. If a battery level is missing, copy this into your report</string>
     <string name="diagnostics_copy">Copy</string>
+
+    <string name="action_add_device">Add a device</string>
+    <string name="action_open_app">Open the app</string>
+    <string name="action_close">Close</string>
+    <string name="pair_hint">Put the device into pairing mode and keep it near</string>
+    <string name="pair_searching">Searching</string>
+    <string name="pair_none">Nothing found</string>
+    <string name="pair_again">Search again</string>
+    <string name="pair_pairing">Pairing</string>
+    <string name="pair_paired">Paired</string>
+    <string name="pair_refused">Android refused to pair with this device</string>
+    <string name="pair_unavailable">Bluetooth is off, or btManage is not allowed to use it</string>
+    <string name="pair_location">Before Android 12 a search finds nothing while Location is off</string>
+    <string name="popup_none">No device is connected</string>
+    <string name="info_manufacturer">Manufacturer</string>
+    <string name="info_firmware">Firmware</string>
+
+    <string name="section_noise">Noise control</string>
+    <string name="noise_off">Off</string>
+    <string name="noise_cancellation">Noise cancellation</string>
+    <string name="noise_transparency">Transparency</string>
+    <string name="noise_adaptive">Adaptive</string>
+    <string name="setting_awareness">Conversation awareness</string>
+    <string name="noise_connecting">Talking to the headphones</string>
+    <string name="noise_unknown">The headphones have not said which mode is on yet</string>
+    <string name="noise_unavailable">This phone\'s Bluetooth does not let apps talk to AirPods directly. It works on Pixel phones from Android 16 QPR3, the March 2026 update, and on OnePlus with OxygenOS 16, OPPO with ColorOS 16 and realme with realme UI 7 or later. Shizuku does not help here. On other phones it takes root and a module that fixes the Bluetooth stack, such as the one LibrePods offers. The details are in Settings, About, Diagnostics</string>
 </resources>

@@ -33,8 +33,11 @@ import kotlinx.coroutines.launch
 import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.DeviceActions
+import ru.fhnb16.btmanage.data.DeviceFacts
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.LinkOutcome
+import ru.fhnb16.btmanage.data.NoiseMode
+import ru.fhnb16.btmanage.service.Aap
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.UpdateState
@@ -47,6 +50,7 @@ fun DevicesScreen(
     settings: SettingsData,
     update: UpdateState,
     onInstall: () -> Unit,
+    onAdd: () -> Unit,
     modifier: Modifier = Modifier,
     open: (String) -> Unit,
 ) {
@@ -84,6 +88,12 @@ fun DevicesScreen(
             }
             items(group, key = { it.id }) { device ->
                 DeviceRow(device, settings) { open(device.id) }
+            }
+        }
+        // Pairing with a device that is not in the list yet.
+        item(key = "add-device") {
+            Box(Modifier.padding(horizontal = if (design.isHistorical) 8.dp else 16.dp, vertical = 12.dp)) {
+                AppButton(stringResource(R.string.action_add_device), primary = false, onClick = onAdd)
             }
         }
     }
@@ -192,6 +202,7 @@ fun UpdateBanner(update: UpdateState, onInstall: () -> Unit, modifier: Modifier 
 fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val codecs by DeviceActions.codecs.collectAsState()
+    val learned by DeviceFacts.facts.collectAsState()
     // Re-read when the levels change, not on every recomposition.
     val history = remember(device.id, device.cells.map { it.percent to it.charging }) {
         Devices.history(device.id, HISTORY_WINDOW_MS + 60 * 60 * 1000L)
@@ -232,6 +243,10 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             }
         }
 
+        if (device.connected && address != null && device.noiseModes.isNotEmpty()) {
+            NoiseSection(device, address)
+        }
+
         if (history.isNotEmpty()) {
             Section(stringResource(R.string.section_history)) {
                 Entry { HistoryChart(history, device.isActive, Modifier.fillMaxWidth()) }
@@ -240,9 +255,12 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
 
         Section(stringResource(R.string.section_info)) {
             // Unknown facts are left out rather than shown empty.
+            // What Android has on record for the device, where the application may read it.
+            val record = address?.let { learned[it] }
             val facts = listOfNotNull(
                 R.string.info_type to DeviceText.kind(context, device.kind),
-                device.model?.let { R.string.info_model to it },
+                record?.manufacturer?.let { R.string.info_manufacturer to it },
+                (device.model ?: record?.model)?.let { R.string.info_model to it },
                 address?.let { R.string.info_address to it },
                 device.transport?.let {
                     R.string.info_transport to stringResource(
@@ -255,6 +273,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
                 },
                 device.profiles.takeIf { it.isNotEmpty() }?.let { R.string.info_profiles to it.joinToString(", ") },
                 address?.let { codecs[it] }?.takeIf { device.connected }?.let { R.string.info_codec to it },
+                record?.firmware?.let { R.string.info_firmware to it },
                 device.rssi?.let { R.string.info_signal to stringResource(R.string.signal_format, it) },
             )
             Entry {
@@ -283,6 +302,71 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             }
         }
     }
+}
+
+/**
+ * Noise control and conversation awareness of AirPods. A choice is sent over the
+ * accessory protocol; the mark moves when the headphones confirm it, not before. When the
+ * phone cannot reach the headphones that way, the section says why and what would help.
+ */
+@Composable
+private fun NoiseSection(device: Device, address: String) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val links by Aap.state.collectAsState()
+    var pending by remember(device.id) { mutableStateOf<NoiseMode?>(null) }
+    var failed by remember(device.id) { mutableStateOf(false) }
+    val link = links[address]
+
+    // The headphones confirmed a mode: the wait is over.
+    LaunchedEffect(device.noiseMode) { pending = null }
+
+    fun attempt(action: suspend () -> String?) {
+        failed = false
+        scope.launch {
+            val failure = action()
+            if (failure != null) {
+                pending = null
+                failed = true
+            }
+        }
+    }
+
+    Section(stringResource(R.string.section_noise)) {
+        for (mode in device.noiseModes) {
+            OptionRow(
+                title = stringResource(noiseLabel(mode)),
+                note = null,
+                selected = (pending ?: device.noiseMode) == mode,
+                radio = true,
+            ) {
+                if (mode != device.noiseMode) {
+                    pending = mode
+                    attempt { Aap.setNoise(context, address, mode) }
+                }
+            }
+        }
+        val awareness = device.awareness
+        if (awareness != null) {
+            SettingToggle(stringResource(R.string.setting_awareness), awareness) { on ->
+                attempt { Aap.setAwareness(context, address, on) }
+            }
+        }
+        val note = when {
+            failed || link?.state == Aap.State.FAILED -> R.string.noise_unavailable
+            link?.state == Aap.State.CONNECTING || pending != null -> R.string.noise_connecting
+            device.noiseMode == null -> R.string.noise_unknown
+            else -> null
+        }
+        if (note != null) Note(stringResource(note), Modifier.entry())
+    }
+}
+
+internal fun noiseLabel(mode: NoiseMode): Int = when (mode) {
+    NoiseMode.OFF -> R.string.noise_off
+    NoiseMode.NOISE_CANCELLATION -> R.string.noise_cancellation
+    NoiseMode.TRANSPARENCY -> R.string.noise_transparency
+    NoiseMode.ADAPTIVE -> R.string.noise_adaptive
 }
 
 /**

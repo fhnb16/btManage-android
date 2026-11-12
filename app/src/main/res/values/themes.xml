@@ -2,5 +2,15 @@
 <resources>
     <!-- Window theme shown until Compose draws its first frame. -->
     <style name="Theme.BtManage" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- The panel a tap on the widget opens: a window that lets the home screen show through.
+         The dimming and the blur behind it are set in PopupActivity. -->
+    <style name="Theme.BtManage.Popup">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
+
     <color name="launcher_background">#0082FC</color>
 </resources>

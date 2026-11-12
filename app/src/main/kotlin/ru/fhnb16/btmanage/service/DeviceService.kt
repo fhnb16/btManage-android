@@ -42,12 +42,14 @@ import org.json.JSONObject
 import ru.fhnb16.btmanage.MainActivity
 import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
+import ru.fhnb16.btmanage.data.DeviceFacts
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Diagnostics
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.widget.BatteryWidget
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Watches the Bluetooth devices while the application is in the background: listens for
@@ -85,6 +87,9 @@ class DeviceService : Service() {
 
     @Volatile
     private var scanning = false
+
+    @Volatile
+    private var anyConnected = false
 
     /** Whether the running scan takes everything, as it may while the application is on screen. */
     private var scanOpen = false
@@ -150,6 +155,11 @@ class DeviceService : Service() {
                 Devices.refresh()
                 onDevices(Devices.list.value)
             }
+            // What Android itself knows about the connected devices, where Shizuku or root
+            // lets the application read it.
+            if (tick % FACTS_EVERY == 1 && anyConnected) {
+                scope.launch { runCatching { DeviceFacts.refresh(this@DeviceService) } }
+            }
             if (tick % SAVE_EVERY == SAVE_EVERY - 1) Devices.save()
             checkForUpdate()
             tick++
@@ -186,23 +196,10 @@ class DeviceService : Service() {
     // --- Advertisements ---------------------------------------------------------------
 
     private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val record = result.scanRecord ?: return
-            Diagnostics.adverts.incrementAndGet()
-            Diagnostics.lastAdvertAt = System.currentTimeMillis()
-            val address = result.device.address.replace(":", "").toLongOrNull(16) ?: return
+        override fun onScanResult(callbackType: Int, result: ScanResult) = onAdvertisement(result)
 
-            // Of everything Apple devices send, only the proximity pairing message carries levels.
-            val apple = record.getManufacturerSpecificData(APPLE)
-            if (apple != null && apple.isNotEmpty() && apple[0] == PROXIMITY_PAIRING) {
-                Diagnostics.appleAdverts.incrementAndGet()
-                Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, apple)
-            }
-            val fastPair = record.serviceData?.get(FAST_PAIR)
-            if (fastPair != null) {
-                Diagnostics.fastPairAdverts.incrementAndGet()
-                Devices.advertisement(address, result.rssi, Devices.ADV_SERVICE_DATA, FAST_PAIR_UUID, fastPair)
-            }
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            for (result in results) onAdvertisement(result)
         }
 
         override fun onScanFailed(errorCode: Int) {
@@ -211,11 +208,44 @@ class DeviceService : Service() {
         }
     }
 
+    private fun onAdvertisement(result: ScanResult) {
+        val record = result.scanRecord ?: return
+        Diagnostics.adverts.incrementAndGet()
+        Diagnostics.lastAdvertAt = System.currentTimeMillis()
+        val address = result.device.address.replace(":", "").toLongOrNull(16) ?: return
+
+        // Of everything Apple devices send, only the proximity pairing message carries
+        // levels. It is looked for in the packet as it came: Android's own reading keeps one
+        // block of data per company, and the last one wins.
+        val packet = record.bytes
+        var proximity = if (packet == null) {
+            null
+        } else {
+            appleProximity(packet) { type ->
+                Diagnostics.appleTypes.getOrPut(type) { AtomicInteger() }.incrementAndGet()
+            }
+        }
+        if (proximity == null) {
+            proximity = record.getManufacturerSpecificData(APPLE)?.takeIf { it.isNotEmpty() && it[0] == PROXIMITY_PAIRING }
+        }
+        if (proximity != null) {
+            Diagnostics.appleAdverts.incrementAndGet()
+            Diagnostics.lastProximity = proximity.take(10).joinToString(" ") { "%02X".format(it) } +
+                ", ${proximity.size} bytes, ${result.rssi} dBm"
+            Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, proximity)
+        }
+        val fastPair = record.serviceData?.get(FAST_PAIR)
+        if (fastPair != null) {
+            Diagnostics.fastPairAdverts.incrementAndGet()
+            Devices.advertisement(address, result.rssi, Devices.ADV_SERVICE_DATA, FAST_PAIR_UUID, fastPair)
+        }
+    }
+
     /**
      * Keeps a scan running. Android quietly stops delivering to a scan that has run for
      * half an hour, so it is started anew before that. While the application is on screen
-     * the scan takes everything; in the background it must carry filters, or Android
-     * pauses it when the screen goes off.
+     * the scan takes everything and listens all the time; in the background it must carry
+     * filters, or Android pauses it when the screen goes off, and it listens sparingly.
      */
     private fun keepScanning() {
         if (adapter?.isEnabled != true) {
@@ -243,7 +273,7 @@ class DeviceService : Service() {
                 ScanFilter.Builder().setServiceData(FAST_PAIR, byteArrayOf()).build(),
             )
         }
-        val mode = if (open) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_POWER
+        val mode = if (open) ScanSettings.SCAN_MODE_LOW_LATENCY else ScanSettings.SCAN_MODE_LOW_POWER
         val settings = ScanSettings.Builder().setScanMode(mode).build()
         scanStartedAt = System.currentTimeMillis()
         scanOpen = open
@@ -251,7 +281,7 @@ class DeviceService : Service() {
             scanner.startScan(filters, settings, scanCallback)
             scanning = true
             Diagnostics.scanStarts.incrementAndGet()
-            Diagnostics.scan = if (open) "running, unfiltered" else "running, filtered"
+            Diagnostics.scan = if (open) "running, unfiltered, low latency" else "running, filtered, low power"
         } catch (error: Throwable) {
             scanning = false
             Diagnostics.scan = "could not start: ${error.javaClass.simpleName}"
@@ -273,6 +303,7 @@ class DeviceService : Service() {
         val linked = Links.connectedAddresses()
         val devices = JSONArray()
         val unread = ArrayList<BluetoothDevice>()
+        val described = ArrayList<String>()
         var connectedCount = 0
 
         for (device in bonded) {
@@ -280,8 +311,23 @@ class DeviceService : Service() {
             val isConnected = isConnected(device) == true || address in linked || address in connected
             if (isConnected) connectedCount++
             val name = runCatching { device.alias }.getOrNull() ?: device.name ?: address
-            val services = device.uuids?.mapNotNull { shortUuid(it) }?.distinct().orEmpty()
+            val uuids = runCatching { device.uuids }.getOrNull()
+            val services = uuids?.mapNotNull { shortUuid(it) }?.distinct().orEmpty()
             val battery = batteryLevel(device) ?: batteries[address]
+
+            // How the core is to match this pairing with what Apple accessories broadcast:
+            // by its name; by the product it named over the hands-free link; or, under a
+            // name of the user's own, as an Apple accessory of a model not known, which
+            // shows in the service only AirPods and Beats offer.
+            val product = appleProducts.getInt(address, -1)
+            val named = name.contains("airpods", ignoreCase = true) || name.contains("beats", ignoreCase = true)
+            val accessory = uuids?.any { it.uuid == APPLE_ACCESSORY } == true
+            val apple = when {
+                named -> "name"
+                product in 0..0xFFFF -> "product %04X".format(product)
+                accessory -> "service"
+                else -> "no"
+            }
 
             devices.put(
                 JSONObject().apply {
@@ -302,17 +348,23 @@ class DeviceService : Service() {
                     put("services", JSONArray(services))
                     if (isConnected && battery != null && battery in 0..100) put("battery", battery)
 
-                    // An Apple accessory under a name of the user's own cannot be told by its
-                    // name; the product it named over the hands-free link stands in.
-                    val product = appleProducts.getInt(address, -1)
-                    val named = name.contains("airpods", ignoreCase = true) || name.contains("beats", ignoreCase = true)
-                    if (product in 0..0xFFFF && !named) {
+                    if (apple != "name" && apple != "no") {
                         put("vendor_source", 1)
                         put("vendor_id", APPLE)
-                        put("product_id", product)
+                        if (apple != "service") put("product_id", product)
                     }
                 },
             )
+            val transport = when (device.type) {
+                BluetoothDevice.DEVICE_TYPE_LE -> "LE"
+                BluetoothDevice.DEVICE_TYPE_DUAL -> "dual"
+                else -> "classic"
+            }
+            described += "  $name: $transport, ${if (isConnected) "connected" else "not connected"}, " +
+                "battery ${battery ?: "none"}, Apple: $apple"
+
+            // AirPods and Beats keep a channel of their own for levels and settings.
+            if (isConnected && accessory) Aap.keep(this, address)
 
             // Bluetooth LE devices Android has no level for are asked directly.
             val overLe = device.type == BluetoothDevice.DEVICE_TYPE_LE ||
@@ -322,6 +374,8 @@ class DeviceService : Service() {
 
         Diagnostics.paired = bonded.size
         Diagnostics.connected = connectedCount
+        Diagnostics.pairedDevices = described.joinToString("\n")
+        anyConnected = connectedCount > 0
         Devices.setSystemDevices(devices.toString())
         if (unread.isNotEmpty()) gatt.poll(unread)
     }
@@ -365,6 +419,7 @@ class DeviceService : Service() {
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> address?.let {
                     connected.remove(it)
                     batteries.remove(it)
+                    Aap.forget(it)
                 }
                 BluetoothAdapter.ACTION_STATE_CHANGED -> {
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
@@ -570,6 +625,7 @@ class DeviceService : Service() {
         private const val TICK_MS = 5_000L
         private const val SYSTEM_EVERY = 6
         private const val SAVE_EVERY = 60
+        private const val FACTS_EVERY = 12
         private const val STATUS_ID = 1
         private const val NOTICE_ID = 3
         private const val UPDATE_EVERY_MS = 24 * 60 * 60 * 1000L
@@ -584,6 +640,9 @@ class DeviceService : Service() {
         private const val FAST_PAIR_UUID = 0xFE2C
         private const val BATTERY_SERVICE_UUID = 0x180F
         private val FAST_PAIR: ParcelUuid = ParcelUuid.fromString("0000fe2c-0000-1000-8000-00805f9b34fb")
+
+        /** The service of Apple's own accessory protocol, which AirPods and Beats list. */
+        private val APPLE_ACCESSORY: java.util.UUID = java.util.UUID.fromString(Aap.ACCESSORY_UUID)
         private val AUDIO_KINDS = setOf("earbuds", "headphones", "headset", "speaker")
 
         // Broadcasts Android sends about a connected device. They are not in the public
@@ -626,6 +685,40 @@ class DeviceService : Service() {
             return if (onBase) ((value.mostSignificantBits ushr 32) and 0xFFFF).toInt() else null
         }
     }
+}
+
+/**
+ * Finds Apple's proximity pairing message in an advertising packet as it came off the air:
+ * a run of blocks of length, type and data, of which the manufacturer blocks of Apple
+ * (type FF, company 4C 00) hold messages of type, length and payload. Returns the message
+ * with its type and length bytes, as the core reads it. [seen] is told the type of every
+ * Apple message on the way.
+ */
+internal fun appleProximity(packet: ByteArray, seen: (Int) -> Unit = {}): ByteArray? {
+    var found: ByteArray? = null
+    var block = 0
+    while (block < packet.size) {
+        val length = packet[block].toInt() and 0xFF
+        val end = block + 1 + length
+        if (length == 0 || end > packet.size) break
+        val apple = length >= 3 &&
+            packet[block + 1] == 0xFF.toByte() &&
+            packet[block + 2] == 0x4C.toByte() &&
+            packet[block + 3] == 0x00.toByte()
+        if (apple) {
+            var message = block + 4
+            while (message + 1 < end) {
+                val type = packet[message].toInt() and 0xFF
+                val next = message + 2 + (packet[message + 1].toInt() and 0xFF)
+                seen(type)
+                // A message the packet cuts short is handed on as it is; the core judges it.
+                if (type == 0x07 && found == null) found = packet.copyOfRange(message, minOf(next, end))
+                message = next
+            }
+        }
+        block = end
+    }
+    return found
 }
 
 /**

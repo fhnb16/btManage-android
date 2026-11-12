@@ -12,7 +12,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -42,11 +46,15 @@ import ru.fhnb16.btmanage.ui.AppTopBar
 import ru.fhnb16.btmanage.ui.DeviceDetail
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.ui.DevicesScreen
+import ru.fhnb16.btmanage.ui.PairingDialog
 import ru.fhnb16.btmanage.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
     /** The device a notification or a widget asked for. */
     private var requested by mutableStateOf<String?>(null)
+
+    /** Counts the times the application was asked to open on its list of devices. */
+    private var listAsked by mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,13 +64,14 @@ class MainActivity : ComponentActivity() {
         DeviceService.start(this)
         requested = intent.getStringExtra(EXTRA_DEVICE)
         setContent {
-            App(requested) { requested = it }
+            App(requested, listAsked) { requested = it }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         requested = intent.getStringExtra(EXTRA_DEVICE)
+        if (requested == null) listAsked++
     }
 
     // While the application is on screen Android's installation dialog may be opened directly.
@@ -82,14 +91,21 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun App(requested: String?, select: (String?) -> Unit) {
+private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
     val context = LocalContext.current
     val settings by Settings.state.collectAsState()
     val devices by Devices.list.collectAsState()
     var granted by remember { mutableStateOf(DeviceService.hasPermissions(context)) }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // The two tabs are pages side by side: a swipe moves between them, as a tap on a tab does.
+    val pager = rememberPagerState { 2 }
+    var pairing by rememberSaveable { mutableStateOf(false) }
     val update by Updates.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    // Asked for the list of devices from outside, while the settings were open.
+    LaunchedEffect(listAsked) {
+        if (listAsked > 0) pager.scrollToPage(0)
+    }
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         granted = DeviceService.hasPermissions(context)
@@ -131,8 +147,8 @@ private fun App(requested: String?, select: (String?) -> Unit) {
                     if (selected == null && granted && Devices.available) {
                         AppTabs(
                             titles = listOf(stringResource(R.string.tab_devices), stringResource(R.string.tab_settings)),
-                            selected = tab,
-                        ) { tab = it }
+                            selected = pager.currentPage,
+                        ) { page -> scope.launch { pager.animateScrollToPage(page) } }
                     }
                 }
             },
@@ -151,10 +167,22 @@ private fun App(requested: String?, select: (String?) -> Unit) {
                     permissions.launch(wanted.toTypedArray())
                 }
                 selected != null -> DeviceDetail(selected, settings, modifier)
-                tab == 0 -> DevicesScreen(devices, settings, update, startUpdate, modifier) { select(it) }
-                else -> SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, modifier)
+                else -> HorizontalPager(
+                    state = pager,
+                    modifier = modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.Top,
+                ) { page ->
+                    if (page == 0) {
+                        DevicesScreen(devices, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
+                            select(it)
+                        }
+                    } else {
+                        SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
+                    }
+                }
             }
         }
+        if (pairing) PairingDialog { pairing = false }
     }
 }
 

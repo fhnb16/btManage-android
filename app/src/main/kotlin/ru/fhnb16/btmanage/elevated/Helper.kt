@@ -13,8 +13,8 @@ import kotlin.system.exitProcess
  * here: there is no `Context`, no permissions of the package, only the rights of whoever
  * started it.
  *
- * Commands: `probe`, `connect <address>`, `disconnect <address>`. The answer is one line,
- * `ok` or `error: ...`, and the exit code.
+ * Commands: `probe`, `connect <address>`, `disconnect <address>`, `metadata`. The answer
+ * ends in one line, `ok` or `error: ...`, and the exit code says the same.
  *
  * Written without a run on a device.
  */
@@ -42,9 +42,46 @@ object Helper {
             println(if (failure == null) "ok" else "error: $failure")
             return if (failure == null) 0 else 1
         }
+        if (command == "metadata") return metadata(adapter())
         println("error: unknown command")
         return 2
     }
+
+    /**
+     * Prints what Android has on record for each paired device, a line per device:
+     * `device <address>|<key>=<value>|...`. Android keeps the levels of single earbuds and
+     * of the case there, and the maker, model and firmware, for the devices that told it:
+     * through Fast Pair, mostly. Only privileged callers may read it.
+     */
+    @SuppressLint("MissingPermission")
+    private fun metadata(adapter: BluetoothAdapter): Int {
+        val read = BluetoothDevice::class.java.getMethod("getMetadata", Int::class.javaPrimitiveType)
+        var failure: String? = null
+        for (device in adapter.bondedDevices) {
+            val line = StringBuilder("device ").append(device.address)
+            for (key in METADATA_KEYS) {
+                val value = try {
+                    read.invoke(device, key) as? ByteArray
+                } catch (error: Throwable) {
+                    failure = describe(error)
+                    null
+                }
+                if (value == null || value.isEmpty()) continue
+                val text = String(value, Charsets.UTF_8).map { if (it < ' ' || it == '|') ' ' else it }.joinToString("")
+                line.append('|').append(key).append('=').append(text.trim())
+            }
+            println(line)
+        }
+        println(if (failure == null) "ok" else "error: $failure")
+        return if (failure == null) 0 else 1
+    }
+
+    /**
+     * Keys of `BluetoothDevice.getMetadata`: maker, model, software and hardware version;
+     * levels of the left earbud, the right one and the case, then whether each is
+     * charging; level of a single battery and whether it is charging.
+     */
+    private val METADATA_KEYS = intArrayOf(0, 1, 2, 3, 10, 11, 12, 13, 14, 15, 18, 19)
 
     @Suppress("DEPRECATION")
     private fun adapter(): BluetoothAdapter {

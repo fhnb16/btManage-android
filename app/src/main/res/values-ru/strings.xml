@@ -145,7 +145,7 @@
     <string name="link_failed">Не получилось. Причина записана в разделе «Настройки», «О программе», «Диагностика»</string>
 
     <string name="settings_access">Расширенный доступ</string>
-    <string name="access_note">Подключать и отключать устройства и узнавать аудиокодек Android разрешает только системным приложениям. btManage может получить эти права через Shizuku или root и ни для чего другого их не использует</string>
+    <string name="access_note">Подключать и отключать устройства, узнавать аудиокодек и читать заряд каждого наушника и кейса, который Android хранит для наушников многих марок, разрешено только системным приложениям. btManage может получить эти права через Shizuku или root и ни для чего другого их не использует</string>
     <string name="access_shizuku_allowed">Разрешено</string>
     <string name="access_shizuku_running">Запущен, доступ ещё не разрешён</string>
     <string name="access_shizuku_absent">Не запущен</string>
@@ -156,4 +156,30 @@
     <string name="settings_diagnostics">Диагностика</string>
     <string name="diagnostics_note">Что приложение увидело с момента запуска. Если заряд не показывается, приложите этот текст к сообщению об ошибке</string>
     <string name="diagnostics_copy">Скопировать</string>
+
+    <string name="action_add_device">Добавить устройство</string>
+    <string name="action_open_app">Открыть приложение</string>
+    <string name="action_close">Закрыть</string>
+    <string name="pair_hint">Переведите устройство в режим сопряжения и держите его рядом</string>
+    <string name="pair_searching">Идёт поиск</string>
+    <string name="pair_none">Ничего не найдено</string>
+    <string name="pair_again">Искать снова</string>
+    <string name="pair_pairing">Сопряжение</string>
+    <string name="pair_paired">Сопряжено</string>
+    <string name="pair_refused">Android отказался сопрягаться с этим устройством</string>
+    <string name="pair_unavailable">Bluetooth выключен, или btManage не разрешено им пользоваться</string>
+    <string name="pair_location">До Android 12 поиск ничего не находит, пока выключена геолокация</string>
+    <string name="popup_none">Нет подключённых устройств</string>
+    <string name="info_manufacturer">Производитель</string>
+    <string name="info_firmware">Прошивка</string>
+
+    <string name="section_noise">Управление шумом</string>
+    <string name="noise_off">Выключено</string>
+    <string name="noise_cancellation">Шумоподавление</string>
+    <string name="noise_transparency">Прозрачность</string>
+    <string name="noise_adaptive">Адаптивный</string>
+    <string name="setting_awareness">Адаптация к разговору</string>
+    <string name="noise_connecting">Связь с наушниками</string>
+    <string name="noise_unknown">Наушники ещё не сообщили, какой режим включён</string>
+    <string name="noise_unavailable">Bluetooth этого телефона не даёт приложениям общаться с AirPods напрямую. Это работает на Pixel начиная с Android 16 QPR3 (обновление марта 2026 года), на OnePlus с OxygenOS 16, OPPO с ColorOS 16 и realme с realme UI 7 и новее. Shizuku здесь не поможет. На других телефонах нужен root и модуль, исправляющий стек Bluetooth, например тот, что предлагает LibrePods. Подробности — в «Настройки», «О программе», «Диагностика»</string>
 </resources>

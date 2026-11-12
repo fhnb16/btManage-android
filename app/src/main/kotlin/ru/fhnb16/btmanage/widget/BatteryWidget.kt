@@ -30,7 +30,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import ru.fhnb16.btmanage.MainActivity
+import ru.fhnb16.btmanage.PopupActivity
 import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Cell
 import ru.fhnb16.btmanage.data.Device
@@ -172,7 +172,8 @@ private fun Content(context: Context, devices: List<Device>, config: WidgetConfi
             .background(palette.background)
             .cornerRadius(palette.corner)
             .padding(12.dp)
-            .clickable(actionStartActivity<MainActivity>()),
+            // A tap opens the panel with the connected devices, over the home screen.
+            .clickable(actionStartActivity<PopupActivity>()),
     ) {
         if (devices.isEmpty()) {
             Text(context.getString(R.string.empty_title), style = TextStyle(color = palette.secondary, fontSize = 13.sp))

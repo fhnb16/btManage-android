@@ -22,7 +22,8 @@ When something does not work on the phone, ask for the text under Settings, Abou
 - **Raise the version with every change that ships**, as `major.minor.patch`: patch for a fix, minor for a new capability, major for a break. The version is `btmanage.versionName` in `gradle.properties`. The version code comes from CI, and CI adds a fourth number by itself only when the same version is built again.
 - Calls outside the public Android interface (`BluetoothDevice.isConnected`, `getBatteryLevel`, the battery level broadcast, anything reached by reflection) are caught and have a fallback: they may vanish in any release.
 - **`elevated/Helper.kt` does not run inside the application.** It is started with `app_process` as the shell user or as root: no `Context`, no resources, no permissions of the package. Keep it free of everything but the Android framework and the Kotlin standard library.
-- **Nothing asks for Shizuku or root on its own.** The user presses a button that needs it, or switches root on. Reading (the codec) uses only access that was already given.
+- **Nothing asks for Shizuku or root on its own.** The user presses a button that needs it, or switches root on. Reading (the codec, Android's record of a device) uses only access that was already given.
+- **The scan permission stays `neverForLocation`.** CAPod, OpenPods and LibrePods declare it the same way and receive what AirPods broadcast, so a missing level is not a reason to ask for location.
 
 ## Interface
 
@@ -61,12 +62,16 @@ An APK built this way has no core library and shows "The core library is missing
 | `…/data/DeviceActions.kt` | Connect, disconnect, the codec: what is tried and in which order |
 | `…/data/Elevated.kt` | Shizuku and root: asking for them, running a command with them |
 | `…/data/Diagnostics.kt` | What the service has seen, for the diagnostics page |
+| `…/data/Discovery.kt` | The search for devices to pair with, and the pairing |
+| `…/data/DeviceFacts.kt` | Android's own record of a device (levels of single earbuds, maker, model, firmware), read with Shizuku or root |
+| `…/PopupActivity.kt` | The panel a tap on the widget opens, over the home screen |
 | `…/elevated/Helper.kt` | The program run as shell or root; also the connect request both sides share |
 | `…/service/DeviceService.kt` | Scanning, paired devices, battery broadcasts and headset events, notifications, widget refresh; the boot receiver |
 | `…/service/Links.kt` | Android's profile services: who is connected, the codec; the parser of `dumpsys` |
 | `…/service/GattBattery.kt` | Reading the Battery Service of a Bluetooth LE device |
+| `…/service/Aap.kt` | The channel of Apple's accessory protocol to AirPods: levels, noise control; the packets come from the core |
 | `…/ui/Design.kt`, `…/ui/Controls.kt` | The designs: colours, shapes, type; and the controls each one draws |
-| `…/ui/` | Screens and shared pieces: battery cells, meter, chart |
+| `…/ui/` | Screens and shared pieces: battery cells, meter, chart; `PairingScreen.kt` is the search for a new device, as a panel and as a dialog |
 | `…/widget/BatteryWidget.kt` | The Glance widget |
 
 - A new setting: a field in `SettingsData` or `WidgetConfig`, load and save in `Settings`, a control in `ui/SettingsScreen.kt`, strings in both languages.

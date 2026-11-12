@@ -4,15 +4,18 @@ Shows the battery of your Bluetooth devices: in the application, in notification
 
 Android 8.0 (API 26) or later.
 
-**Barely run on a device.** The first start on a phone listed the paired devices but showed no battery levels. Version 0.3.0 answers that with more sources for the level, a connect button, drawn controls for three of the designs and a diagnostics page; none of it has been compiled or started yet. Expect rough edges; what is known to be open is in [TODO.md](TODO.md). If a level is still missing, the text under Settings, About, Diagnostics says why.
+**Barely run on a device.** On the maintainer's phone the paired devices are listed, but AirPods have shown no levels so far, in 0.2.0 and in 0.3.0; the cause is not known. Version 0.4.0 reads the advertisements more carefully, no longer depends on the name of the pairing, and reports much more under Settings, About, Diagnostics: that text is what a report of a missing level needs. Everything added in 0.3.0 and 0.4.0 was written without a compiler and without a phone at hand. Expect rough edges; what is known to be open is in [TODO.md](TODO.md).
 
 ## What it does
 
 - **Devices.** Every paired device, grouped into connected, nearby and the rest, with its level. Earbuds that are not paired with the phone but advertise nearby are listed too.
-- **Device page.** Connect or disconnect, batteries, an estimate of the time left, a chart of the last 24 hours, type, address, profiles, the audio codec in use, signal.
+- **Adding a device.** "Add a device" under the list searches for devices nearby that are ready to pair and asks Android to pair with the one you tap. Android shows its own dialog for the code or the confirmation.
+- **Noise control** for AirPods that have it: off, noise cancellation, transparency, adaptive, and conversation awareness, on the device page. It goes over Apple's own accessory protocol (AAP), which also brings levels in steps of 1 %. Android has no public way to open that channel, and on most phones a fault in Android's Bluetooth stack keeps it from working; it is fixed on Pixel phones from Android 16 QPR3 and on recent OnePlus, OPPO and realme phones. Where it fails, the page says so and what would help. Shizuku does not.
+- **Device page.** Connect or disconnect, batteries, an estimate of the time left, a chart of the last 24 hours, type, maker, model, address, profiles, the audio codec in use, firmware, signal.
 - **Notifications.** A quiet ongoing one with the current levels; alerts when your headphones connect and when a battery runs low.
-- **Widget.** The levels of up to four devices on the home screen. Configured in the application's settings: how many devices and which, layout (side by side, stacked, grid), detail (one level, or each battery), background (solid, translucent, none), theme and accent colour. Android gives a widget no way to blur the wallpaper behind it, so there is no blur option.
+- **Widget.** The levels of up to four devices on the home screen. Configured in the application's settings: how many devices and which, layout (side by side, stacked, grid), detail (one level, or each battery), background (solid, translucent, none), theme and accent colour. Android gives a widget no way to blur the wallpaper behind it, so there is no blur option. A tap on the widget opens a panel over the lower half of the home screen: the connected devices with their levels, a button that opens the application and one that searches for a new device. The home screen behind the panel is dimmed, and blurred on Android 12 and later where the phone allows window blur.
 - **Four designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later. Fluent, the look of the Windows application: grey surfaces, bordered cards, toggle switches, combo boxes, the Windows type sizes. Android 4.3 (Holo): the action bar, tabs over a blue line, the ON/OFF switch, spinners, lists under headers in capitals. Android 2.1: the narrow title bar, grey gradient buttons and tabs, tick boxes, the orange highlight. Material You uses the Material 3 components; the other three draw their own controls. The widget follows the choice.
+- **Two tabs**, Devices and Settings; a swipe to the side moves between them.
 - **Settings**, on four tabs. General: notifications and their threshold, start with the phone, extended access (Shizuku, root). Appearance: design, theme, accent colour (the system's, or Bluetooth blue). Widget. About: updates, versions, diagnostics.
 - **Updates.** Looks at the GitHub releases of this repository when the application opens and once a day in the background. A newer release is downloaded, checked against the SHA-256 GitHub reports, and handed to Android's package installer, without a trip to the browser. See [Updates](#updates) for what Android asks the user.
 
@@ -22,17 +25,20 @@ A background service does the watching. It keeps scanning with the screen off an
 
 | Device | Source |
 |---|---|
-| AirPods, Beats | Bluetooth LE advertisements: left, right, case |
+| AirPods, Beats | Bluetooth LE advertisements: left, right, case, in steps of 10 %. Where the phone's Bluetooth stack allows Apple's accessory protocol, the same over that channel in steps of 1 % |
 | Fast Pair earbuds | Bluetooth LE advertisements |
 | Headsets and headphones | The level Android holds for a connected device; the broadcast Android sends when it changes; the battery events a headset sends over its hands-free link (`+IPHONEACCEV`, `+XEVENT`, the hands-free battery indicator) |
 | Bluetooth LE mice, keyboards, remotes | The level Android holds; where it holds none, the GATT Battery Service is read directly |
 | Controllers and everything else | The level Android holds for a connected device |
+| Earbuds of many makers (Fast Pair: Pixel Buds, Sony, JBL, Nothing, OnePlus and others) | With Shizuku or root: Android's own record of the device, which holds a level for each earbud and the case, and the maker, model and firmware |
+
+Android keeps that last record for the devices that told it, mostly through Fast Pair; it is what Android's own Bluetooth settings show. Only privileged callers may read it, so the application reads it through Shizuku or root, once a minute while a device is connected, and only with access already given. Earbuds that speak only their maker's own protocol (Galaxy Buds, Huawei FreeBuds, many Sony models outside Fast Pair) still show the single level of the hands-free link: see [TODO.md](TODO.md).
 
 Whether a device is connected comes from Android's profile services (audio, hands-free, input, hearing aid, LE Audio, GATT), with the connection broadcasts and a call outside the public interface as further witnesses.
 
-The scan for advertisements is restarted every twenty minutes, because Android stops delivering to a scan that runs for half an hour. In the background it carries filters, which Android demands for a scan that survives the screen going off; while the application is on screen it takes everything.
+The scan for advertisements is restarted every twenty minutes, because Android stops delivering to a scan that runs for half an hour. In the background it carries filters, which Android demands for a scan that survives the screen going off, and listens sparingly; while the application is on screen it takes everything and listens all the time. The message with the levels is looked for in the advertising packet as it came off the air, not in Android's reading of it.
 
-Android does not tell applications the product identifier of a paired device, so AirPods are matched to their pairing by name: the pairing must have "AirPods" or "Beats" in its name. A pairing under another name is matched by the product identifier the accessory gives over its hands-free link (`+XAPL`), once it has connected while the application was running.
+Android does not tell applications the product identifier of a paired device, so the levels AirPods broadcast are matched to the pairing in one of three ways: by a name with "AirPods" or "Beats" in it; by the product identifier the accessory gives over its hands-free link (`+XAPL`), once it has connected while the application was running; or by the service only Apple's accessories offer, which marks the pairing as an Apple accessory of a model not known. Levels that match no pairing are listed as a device of their own, under "Nearby".
 
 ## Connecting, disconnecting and the codec
 
