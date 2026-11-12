@@ -75,9 +75,9 @@
     <string name="settings_tab_about">О программе</string>
     <string name="setting_design">Стиль интерфейса</string>
     <string name="design_material_note">Родной вид Android. С системным акцентом цвета берутся из обоев, на Android 12 и новее</string>
-    <string name="design_fluent_note">Вид приложения для Windows: серые поверхности, карточки с рамкой, небольшие скругления</string>
-    <string name="design_holo_note">Holo: чёрный или светло-серый фон, голубой акцент, тонкие цифры, заголовки прописными</string>
-    <string name="design_eclair_note">Ранний Android: чёрный или белый фон, оранжевая подсветка, серая строка заголовка</string>
+    <string name="design_fluent_note">Вид приложения для Windows: серые поверхности, карточки с рамкой, переключатели и выпадающие списки</string>
+    <string name="design_holo_note">Holo: чёрный или светло-серый фон, голубой акцент, переключатель «ВКЛ/ВЫКЛ», списки под заголовками прописными</string>
+    <string name="design_eclair_note">Ранний Android: серые кнопки и вкладки, галочки, оранжевая подсветка, узкая строка заголовка</string>
     <string name="settings_colours">Цвета</string>
     <string name="setting_theme">Тема</string>
     <string name="setting_accent">Акцентный цвет</string>
@@ -131,4 +131,29 @@
     <string name="channel_alerts">Подключения и низкий заряд</string>
     <string name="channel_updates">Обновления</string>
     <string name="toast_low">Низкий заряд: %1$s</string>
+
+    <string name="switch_on">ВКЛ</string>
+    <string name="switch_off">ВЫКЛ</string>
+
+    <string name="section_device_settings">Это устройство</string>
+    <string name="info_codec">Кодек</string>
+    <string name="action_connect">Подключить</string>
+    <string name="action_disconnect">Отключить</string>
+    <string name="action_bluetooth_settings">Настройки Bluetooth</string>
+    <string name="link_asked">Запрос передан Android. Устройству может понадобиться несколько секунд</string>
+    <string name="link_no_access">Android разрешает подключать и отключать устройства только системным приложениям. btManage может делать это через Shizuku или с root: см. «Настройки», «Общие». Пока доступа нет, пользуйтесь настройками Bluetooth</string>
+    <string name="link_failed">Не получилось. Причина записана в разделе «Настройки», «О программе», «Диагностика»</string>
+
+    <string name="settings_access">Расширенный доступ</string>
+    <string name="access_note">Подключать и отключать устройства и узнавать аудиокодек Android разрешает только системным приложениям. btManage может получить эти права через Shizuku или root и ни для чего другого их не использует</string>
+    <string name="access_shizuku_allowed">Разрешено</string>
+    <string name="access_shizuku_running">Запущен, доступ ещё не разрешён</string>
+    <string name="access_shizuku_absent">Не запущен</string>
+    <string name="access_allow">Разрешить</string>
+    <string name="access_root">Использовать root</string>
+    <string name="access_root_refused">Доступ root не получен</string>
+
+    <string name="settings_diagnostics">Диагностика</string>
+    <string name="diagnostics_note">Что приложение увидело с момента запуска. Если заряд не показывается, приложите этот текст к сообщению об ошибке</string>
+    <string name="diagnostics_copy">Скопировать</string>
 </resources>

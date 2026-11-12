@@ -65,6 +65,7 @@ data class RoleHistory(val role: Role, val points: List<HistoryPoint>)
 object Devices {
     const val ADV_MANUFACTURER = 0
     const val ADV_SERVICE_DATA = 1
+    const val SOURCE_GATT = 2
 
     private const val STATE_FILE = "state.json"
     private const val SNAPSHOT_FILE = "snapshot.json"
@@ -99,6 +100,10 @@ object Devices {
 
     fun setSystemDevices(devicesJson: String) =
         publish(call { Native.hubSetSystemDevices(it, devicesJson, now()) })
+
+    /** A level read from the device itself; [source] is one of the core's, such as [SOURCE_GATT]. */
+    fun battery(deviceId: String, source: Int, percent: Int, charging: Boolean) =
+        publish(call { Native.hubBattery(it, deviceId, source, percent, charging, now()) })
 
     /** Re-reads the list, so ages move on and devices that left drop out. */
     fun refresh() = publish(call { Native.hubSnapshot(it, now()) })

@@ -45,6 +45,8 @@ data class SettingsData(
     val autoUpdate: Boolean = true,
     /** The user has been shown Android's screen for letting the application install packages. */
     val installAsked: Boolean = false,
+    /** Use root, through `su`, for what Android allows only system applications to do. */
+    val useRoot: Boolean = false,
     /** Devices the user wants no notifications about. */
     val muted: Set<String> = emptySet(),
     val widget: WidgetConfig = WidgetConfig(),
@@ -78,6 +80,7 @@ object Settings {
             checkUpdates = prefs.getBoolean("checkUpdates", defaults.checkUpdates),
             autoUpdate = prefs.getBoolean("autoUpdate", defaults.autoUpdate),
             installAsked = prefs.getBoolean("installAsked", defaults.installAsked),
+            useRoot = prefs.getBoolean("useRoot", defaults.useRoot),
             muted = prefs.getStringSet("muted", emptySet())!!.toSet(),
             widget = WidgetConfig(
                 count = prefs.getInt("widget.count", widget.count),
@@ -106,6 +109,7 @@ object Settings {
             putBoolean("checkUpdates", next.checkUpdates)
             putBoolean("autoUpdate", next.autoUpdate)
             putBoolean("installAsked", next.installAsked)
+            putBoolean("useRoot", next.useRoot)
             putStringSet("muted", next.muted)
             putInt("widget.count", next.widget.count)
             putString("widget.layout", next.widget.layout)

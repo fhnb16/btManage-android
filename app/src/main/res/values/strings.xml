@@ -81,11 +81,11 @@
     <string name="design_material" translatable="false">Material You</string>
     <string name="design_fluent" translatable="false">Fluent</string>
     <string name="design_material_note">Android\'s own look. With the system accent the colours come from your wallpaper, on Android 12 and later</string>
-    <string name="design_fluent_note">The look of the Windows application: grey surfaces, bordered cards, small corners</string>
+    <string name="design_fluent_note">The look of the Windows application: grey surfaces, bordered cards, toggle switches and combo boxes</string>
     <string name="design_holo" translatable="false">Android 4.3</string>
-    <string name="design_holo_note">Holo: black or pale grey, the Holo blue, thin figures, headers in capitals</string>
+    <string name="design_holo_note">Holo: black or pale grey, the Holo blue, the ON and OFF switch, lists under headers in capitals</string>
     <string name="design_eclair" translatable="false">Android 2.1</string>
-    <string name="design_eclair_note">The early Android: black or white, the orange highlight, a grey title bar</string>
+    <string name="design_eclair_note">The early Android: grey buttons and tabs, tick boxes, the orange highlight, a narrow title bar</string>
     <string name="settings_colours">Colours</string>
     <string name="setting_theme">Theme</string>
     <string name="setting_accent">Accent colour</string>
@@ -139,4 +139,30 @@
     <string name="channel_alerts">Connections and low battery</string>
     <string name="channel_updates">Updates</string>
     <string name="toast_low">Low battery: %1$s</string>
+
+    <string name="switch_on">ON</string>
+    <string name="switch_off">OFF</string>
+
+    <string name="section_device_settings">This device</string>
+    <string name="info_codec">Codec</string>
+    <string name="action_connect">Connect</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_bluetooth_settings">Bluetooth settings</string>
+    <string name="link_asked">Android has been asked. The device may take a few seconds</string>
+    <string name="link_no_access">Android lets only system apps connect and disconnect devices. btManage can do it through Shizuku or with root: see Settings, General. Until then, use the Bluetooth settings</string>
+    <string name="link_failed">It did not work. The reason is in Settings, About, Diagnostics</string>
+
+    <string name="settings_access">Extended access</string>
+    <string name="access_note">Android lets only system apps connect or disconnect a device and read its audio codec. btManage can borrow those rights from Shizuku or from root, and uses them for nothing else</string>
+    <string name="access_shizuku" translatable="false">Shizuku</string>
+    <string name="access_shizuku_allowed">Allowed</string>
+    <string name="access_shizuku_running">Running, not allowed yet</string>
+    <string name="access_shizuku_absent">Not running</string>
+    <string name="access_allow">Allow</string>
+    <string name="access_root">Use root access</string>
+    <string name="access_root_refused">Root access was not given</string>
+
+    <string name="settings_diagnostics">Diagnostics</string>
+    <string name="diagnostics_note">What the app has seen since it started. If a battery level is missing, copy this into your report</string>
+    <string name="diagnostics_copy">Copy</string>
 </resources>

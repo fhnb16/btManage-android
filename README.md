@@ -4,16 +4,16 @@ Shows the battery of your Bluetooth devices: in the application, in notification
 
 Android 8.0 (API 26) or later.
 
-**Not run on a device yet.** The application compiles and packages, and its logic lives in the tested core, but nobody has started it on a phone. Expect rough edges; what is known to be open is in [TODO.md](TODO.md).
+**Barely run on a device.** The first start on a phone listed the paired devices but showed no battery levels. Version 0.3.0 answers that with more sources for the level, a connect button, drawn controls for three of the designs and a diagnostics page; none of it has been compiled or started yet. Expect rough edges; what is known to be open is in [TODO.md](TODO.md). If a level is still missing, the text under Settings, About, Diagnostics says why.
 
 ## What it does
 
 - **Devices.** Every paired device, grouped into connected, nearby and the rest, with its level. Earbuds that are not paired with the phone but advertise nearby are listed too.
-- **Device page.** Batteries, an estimate of the time left, a chart of the last 24 hours, type, address, profiles, signal.
+- **Device page.** Connect or disconnect, batteries, an estimate of the time left, a chart of the last 24 hours, type, address, profiles, the audio codec in use, signal.
 - **Notifications.** A quiet ongoing one with the current levels; alerts when your headphones connect and when a battery runs low.
 - **Widget.** The levels of up to four devices on the home screen. Configured in the application's settings: how many devices and which, layout (side by side, stacked, grid), detail (one level, or each battery), background (solid, translucent, none), theme and accent colour. Android gives a widget no way to blur the wallpaper behind it, so there is no blur option.
-- **Four designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later. Fluent, the look of the Windows application: grey surfaces, bordered cards, small corners, the Windows type sizes. Android 4.3 (Holo): black or pale grey, the Holo blue, thin figures, headers in capitals. Android 2.1: black or white, the orange highlight, a grey title bar. The two historical ones are a likeness in colour, shape and type on today's components, not the old widgets rebuilt. The widget follows the choice.
-- **Settings**, on four tabs. General: notifications and their threshold, start with the phone. Appearance: design, theme, accent colour (the system's, or Bluetooth blue). Widget. About: updates and versions.
+- **Four designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later. Fluent, the look of the Windows application: grey surfaces, bordered cards, toggle switches, combo boxes, the Windows type sizes. Android 4.3 (Holo): the action bar, tabs over a blue line, the ON/OFF switch, spinners, lists under headers in capitals. Android 2.1: the narrow title bar, grey gradient buttons and tabs, tick boxes, the orange highlight. Material You uses the Material 3 components; the other three draw their own controls. The widget follows the choice.
+- **Settings**, on four tabs. General: notifications and their threshold, start with the phone, extended access (Shizuku, root). Appearance: design, theme, accent colour (the system's, or Bluetooth blue). Widget. About: updates, versions, diagnostics.
 - **Updates.** Looks at the GitHub releases of this repository when the application opens and once a day in the background. A newer release is downloaded, checked against the SHA-256 GitHub reports, and handed to Android's package installer, without a trip to the browser. See [Updates](#updates) for what Android asks the user.
 
 A background service does the watching. It keeps scanning with the screen off and starts with the phone unless switched off in the settings.
@@ -24,9 +24,27 @@ A background service does the watching. It keeps scanning with the screen off an
 |---|---|
 | AirPods, Beats | Bluetooth LE advertisements: left, right, case |
 | Fast Pair earbuds | Bluetooth LE advertisements |
-| Headsets, mice, keyboards, controllers | The level Android itself holds for a connected device |
+| Headsets and headphones | The level Android holds for a connected device; the broadcast Android sends when it changes; the battery events a headset sends over its hands-free link (`+IPHONEACCEV`, `+XEVENT`, the hands-free battery indicator) |
+| Bluetooth LE mice, keyboards, remotes | The level Android holds; where it holds none, the GATT Battery Service is read directly |
+| Controllers and everything else | The level Android holds for a connected device |
 
-Android does not tell applications the product identifier of a paired device, so AirPods are matched to their pairing by name: the pairing must have "AirPods" or "Beats" in its name.
+Whether a device is connected comes from Android's profile services (audio, hands-free, input, hearing aid, LE Audio, GATT), with the connection broadcasts and a call outside the public interface as further witnesses.
+
+The scan for advertisements is restarted every twenty minutes, because Android stops delivering to a scan that runs for half an hour. In the background it carries filters, which Android demands for a scan that survives the screen going off; while the application is on screen it takes everything.
+
+Android does not tell applications the product identifier of a paired device, so AirPods are matched to their pairing by name: the pairing must have "AirPods" or "Beats" in its name. A pairing under another name is matched by the product identifier the accessory gives over its hands-free link (`+XAPL`), once it has connected while the application was running.
+
+## Connecting, disconnecting and the codec
+
+Android has no public call for connecting or disconnecting a paired device, and from Android 13 it tells only privileged applications the audio codec. The buttons on a device page try, in this order:
+
+1. The calls an ordinary application could use before Android 12.
+2. [Shizuku](https://shizuku.rikka.app/), if it is running. The first time, Shizuku asks whether btManage may use it.
+3. Root, if "Use root access" is switched on under Settings, General.
+
+With Shizuku or root the application starts a small part of itself (`elevated/Helper.kt`) as the shell user or as root, and that part asks Android to connect or disconnect. The codec is read from `dumpsys bluetooth_manager` the same way. Without either, the page says so and offers Android's Bluetooth settings.
+
+None of the three paths has been run on a device.
 
 ## Updates
 

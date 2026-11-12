@@ -13,15 +13,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,14 +35,14 @@ import kotlinx.coroutines.launch
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.service.DeviceService
+import ru.fhnb16.btmanage.ui.AppButton
+import ru.fhnb16.btmanage.ui.AppTabs
 import ru.fhnb16.btmanage.ui.AppTheme
+import ru.fhnb16.btmanage.ui.AppTopBar
 import ru.fhnb16.btmanage.ui.DeviceDetail
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.ui.DevicesScreen
 import ru.fhnb16.btmanage.ui.SettingsScreen
-import ru.fhnb16.btmanage.ui.buttonShape
-import ru.fhnb16.btmanage.ui.caps
-import ru.fhnb16.btmanage.ui.topBarColors
 
 class MainActivity : ComponentActivity() {
     /** The device a notification or a widget asked for. */
@@ -87,7 +81,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun App(requested: String?, select: (String?) -> Unit) {
     val context = LocalContext.current
@@ -131,22 +124,15 @@ private fun App(requested: String?, select: (String?) -> Unit) {
         Scaffold(
             topBar = {
                 Column {
-                    TopAppBar(
-                        title = {
-                            Text(selected?.let { DeviceText.name(context, it) } ?: stringResource(R.string.app_name))
-                        },
-                        navigationIcon = {
-                            if (selected != null) {
-                                TextButton(onClick = { select(null) }) { Text(stringResource(R.string.back)) }
-                            }
-                        },
-                        colors = topBarColors(),
+                    AppTopBar(
+                        title = selected?.let { DeviceText.name(context, it) } ?: stringResource(R.string.app_name),
+                        onBack = if (selected != null) ({ select(null) }) else null,
                     )
                     if (selected == null && granted && Devices.available) {
-                        PrimaryTabRow(selectedTabIndex = tab) {
-                            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.tab_devices).caps()) })
-                            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.tab_settings).caps()) })
-                        }
+                        AppTabs(
+                            titles = listOf(stringResource(R.string.tab_devices), stringResource(R.string.tab_settings)),
+                            selected = tab,
+                        ) { tab = it }
                     }
                 }
             },
@@ -187,7 +173,7 @@ private fun Message(
             Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (action != null) {
-            Button(onClick = onAction, modifier = Modifier.padding(top = 8.dp), shape = buttonShape()) { Text(action) }
+            AppButton(action, Modifier.padding(top = 8.dp), onClick = onAction)
         }
     }
 }

@@ -7,8 +7,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.bluetooth.BluetoothA2dp
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
@@ -18,6 +20,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -32,12 +35,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import ru.fhnb16.btmanage.MainActivity
 import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Devices
+import ru.fhnb16.btmanage.data.Diagnostics
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.ui.DeviceText
@@ -47,6 +53,11 @@ import ru.fhnb16.btmanage.widget.BatteryWidget
  * Watches the Bluetooth devices while the application is in the background: listens for
  * the advertisements earbuds send their levels in, follows the paired devices and their
  * batteries, keeps the widgets current and shows notifications.
+ *
+ * A level can come from several places, and each is listened to: Android's own record for
+ * a paired device, the broadcast Android sends when that record changes, the events a
+ * headset sends over its hands-free link, the Battery Service of a Bluetooth LE device,
+ * and the advertisements.
  *
  * It runs as a foreground service of the "connected device" type, with a quiet ongoing
  * notification that carries the levels.
@@ -59,12 +70,25 @@ class DeviceService : Service() {
     private val batteries = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val connected: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
+    /** Product identifiers Apple accessories gave over their hands-free link, by address. */
+    private lateinit var appleProducts: SharedPreferences
+    private lateinit var gatt: GattBattery
+
+    /** One pass over the devices at a time: the loop and the broadcasts both ask for one. */
+    private val gate = Mutex()
+
     /** What was last announced per device: whether it was active, and which batteries were low. */
     private val seen = mutableMapOf<String, Pair<Boolean, Int>>()
     private var primed = false
-    private var scanning = false
     private var widgetSignature = ""
     private var statusText = ""
+
+    @Volatile
+    private var scanning = false
+
+    /** Whether the running scan takes everything, as it may while the application is on screen. */
+    private var scanOpen = false
+    private var scanStartedAt = 0L
 
     /** When updates were last looked for; set so that the first look comes shortly after start. */
     private var updateCheckedAt = System.currentTimeMillis() - UPDATE_EVERY_MS + UPDATE_FIRST_MS
@@ -76,6 +100,11 @@ class DeviceService : Service() {
         super.onCreate()
         Settings.load(this)
         Devices.open(this)
+        appleProducts = getSharedPreferences("apple-products", Context.MODE_PRIVATE)
+        gatt = GattBattery(this) { address, percent ->
+            Diagnostics.lastLevel = "GATT $percent %"
+            Devices.battery(address, Devices.SOURCE_GATT, percent, false)
+        }
         createChannels()
     }
 
@@ -94,6 +123,7 @@ class DeviceService : Service() {
 
         if (!running) {
             running = true
+            Links.open(this)
             registerReceivers()
             scope.launch { watch() }
         }
@@ -103,6 +133,7 @@ class DeviceService : Service() {
     override fun onDestroy() {
         running = false
         stopScan()
+        gatt.close()
         runCatching { unregisterReceiver(receiver) }
         Devices.save()
         scope.cancel()
@@ -113,10 +144,12 @@ class DeviceService : Service() {
     private suspend fun watch() {
         var tick = 0
         while (scope.isActive) {
-            if (adapter?.isEnabled == true) startScan() else scanning = false
-            if (tick % SYSTEM_EVERY == 0) readSystemDevices()
-            Devices.refresh()
-            onDevices(Devices.list.value)
+            keepScanning()
+            gate.withLock {
+                if (tick % SYSTEM_EVERY == 0) readSystemDevices()
+                Devices.refresh()
+                onDevices(Devices.list.value)
+            }
             if (tick % SAVE_EVERY == SAVE_EVERY - 1) Devices.save()
             checkForUpdate()
             tick++
@@ -155,33 +188,74 @@ class DeviceService : Service() {
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val record = result.scanRecord ?: return
+            Diagnostics.adverts.incrementAndGet()
+            Diagnostics.lastAdvertAt = System.currentTimeMillis()
             val address = result.device.address.replace(":", "").toLongOrNull(16) ?: return
-            record.manufacturerSpecificData?.let { data ->
-                for (index in 0 until data.size()) {
-                    Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, data.keyAt(index), data.valueAt(index))
-                }
+
+            // Of everything Apple devices send, only the proximity pairing message carries levels.
+            val apple = record.getManufacturerSpecificData(APPLE)
+            if (apple != null && apple.isNotEmpty() && apple[0] == PROXIMITY_PAIRING) {
+                Diagnostics.appleAdverts.incrementAndGet()
+                Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, apple)
             }
-            record.serviceData?.forEach { (uuid, data) ->
-                shortUuid(uuid)?.let { Devices.advertisement(address, result.rssi, Devices.ADV_SERVICE_DATA, it, data) }
+            val fastPair = record.serviceData?.get(FAST_PAIR)
+            if (fastPair != null) {
+                Diagnostics.fastPairAdverts.incrementAndGet()
+                Devices.advertisement(address, result.rssi, Devices.ADV_SERVICE_DATA, FAST_PAIR_UUID, fastPair)
             }
         }
 
         override fun onScanFailed(errorCode: Int) {
             scanning = false
+            Diagnostics.scan = "failed, code $errorCode"
         }
     }
 
+    /**
+     * Keeps a scan running. Android quietly stops delivering to a scan that has run for
+     * half an hour, so it is started anew before that. While the application is on screen
+     * the scan takes everything; in the background it must carry filters, or Android
+     * pauses it when the screen goes off.
+     */
+    private fun keepScanning() {
+        if (adapter?.isEnabled != true) {
+            scanning = false
+            Diagnostics.scan = "Bluetooth is off"
+            return
+        }
+        val open = Updates.foreground
+        val age = System.currentTimeMillis() - scanStartedAt
+        // Not more often than twice a minute: Android refuses applications that restart scans rapidly.
+        if (scanning && age > SCAN_SETTLE_MS && (open != scanOpen || age > SCAN_RESTART_MS)) stopScan()
+        if (!scanning && age > SCAN_SETTLE_MS) startScan(open)
+    }
+
     @SuppressLint("MissingPermission")
-    private fun startScan() {
-        if (scanning) return
+    private fun startScan(open: Boolean) {
         val scanner = adapter?.bluetoothLeScanner ?: return
-        // With filters Android keeps delivering results while the screen is off.
-        val filters = listOf(
-            ScanFilter.Builder().setManufacturerData(APPLE, byteArrayOf()).build(),
-            ScanFilter.Builder().setServiceData(FAST_PAIR, byteArrayOf()).build(),
-        )
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build()
-        scanning = runCatching { scanner.startScan(filters, settings, scanCallback) }.isSuccess
+        val filters = if (open) {
+            null
+        } else {
+            listOf(
+                ScanFilter.Builder()
+                    .setManufacturerData(APPLE, byteArrayOf(PROXIMITY_PAIRING), byteArrayOf(0xFF.toByte()))
+                    .build(),
+                ScanFilter.Builder().setServiceData(FAST_PAIR, byteArrayOf()).build(),
+            )
+        }
+        val mode = if (open) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_POWER
+        val settings = ScanSettings.Builder().setScanMode(mode).build()
+        scanStartedAt = System.currentTimeMillis()
+        scanOpen = open
+        try {
+            scanner.startScan(filters, settings, scanCallback)
+            scanning = true
+            Diagnostics.scanStarts.incrementAndGet()
+            Diagnostics.scan = if (open) "running, unfiltered" else "running, filtered"
+        } catch (error: Throwable) {
+            scanning = false
+            Diagnostics.scan = "could not start: ${error.javaClass.simpleName}"
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -196,18 +270,23 @@ class DeviceService : Service() {
     @SuppressLint("MissingPermission")
     private fun readSystemDevices() {
         val bonded = runCatching { adapter?.bondedDevices }.getOrNull() ?: return
+        val linked = Links.connectedAddresses()
         val devices = JSONArray()
+        val unread = ArrayList<BluetoothDevice>()
+        var connectedCount = 0
+
         for (device in bonded) {
             val address = device.address
-            val isConnected = isConnected(device) ?: (address in connected)
-            val services = JSONArray()
-            device.uuids?.mapNotNull { shortUuid(it) }?.distinct()?.forEach(services::put)
+            val isConnected = isConnected(device) == true || address in linked || address in connected
+            if (isConnected) connectedCount++
+            val name = runCatching { device.alias }.getOrNull() ?: device.name ?: address
+            val services = device.uuids?.mapNotNull { shortUuid(it) }?.distinct().orEmpty()
             val battery = batteryLevel(device) ?: batteries[address]
 
             devices.put(
                 JSONObject().apply {
                     put("id", address)
-                    put("name", runCatching { device.alias }.getOrNull() ?: device.name ?: address)
+                    put("name", name)
                     put("address", address.replace(":", "").toLong(16))
                     put(
                         "transport",
@@ -220,26 +299,57 @@ class DeviceService : Service() {
                     put("connected", isConnected)
                     // The device class holds the major and minor class in the bits the core reads.
                     device.bluetoothClass?.let { put("class_of_device", it.deviceClass) }
-                    put("services", services)
+                    put("services", JSONArray(services))
                     if (isConnected && battery != null && battery in 0..100) put("battery", battery)
+
+                    // An Apple accessory under a name of the user's own cannot be told by its
+                    // name; the product it named over the hands-free link stands in.
+                    val product = appleProducts.getInt(address, -1)
+                    val named = name.contains("airpods", ignoreCase = true) || name.contains("beats", ignoreCase = true)
+                    if (product in 0..0xFFFF && !named) {
+                        put("vendor_source", 1)
+                        put("vendor_id", APPLE)
+                        put("product_id", product)
+                    }
                 },
             )
+
+            // Bluetooth LE devices Android has no level for are asked directly.
+            val overLe = device.type == BluetoothDevice.DEVICE_TYPE_LE ||
+                (device.type == BluetoothDevice.DEVICE_TYPE_DUAL && BATTERY_SERVICE_UUID in services)
+            if (isConnected && battery == null && overLe) unread.add(device)
         }
+
+        Diagnostics.paired = bonded.size
+        Diagnostics.connected = connectedCount
         Devices.setSystemDevices(devices.toString())
+        if (unread.isNotEmpty()) gatt.poll(unread)
     }
 
     /**
      * Whether a paired device is connected. Android keeps this call out of the public
      * interface; it has been there, unchanged, for many versions. Null when it is not.
      */
-    private fun isConnected(device: BluetoothDevice): Boolean? = runCatching {
-        BluetoothDevice::class.java.getMethod("isConnected").invoke(device) as? Boolean
-    }.getOrNull()
+    private fun isConnected(device: BluetoothDevice): Boolean? {
+        val answer = try {
+            BluetoothDevice::class.java.getMethod("isConnected").invoke(device) as? Boolean
+        } catch (_: Throwable) {
+            null
+        }
+        Diagnostics.connectedCall = if (answer == null) "refused" else "answers"
+        return answer
+    }
 
     /** The level Android itself holds for a device (headsets report it), if any. */
-    private fun batteryLevel(device: BluetoothDevice): Int? = runCatching {
-        (BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as? Int)?.takeIf { it in 0..100 }
-    }.getOrNull()
+    private fun batteryLevel(device: BluetoothDevice): Int? {
+        val answer = try {
+            BluetoothDevice::class.java.getMethod("getBatteryLevel").invoke(device) as? Int
+        } catch (_: Throwable) {
+            null
+        }
+        Diagnostics.batteryCall = if (answer == null) "refused" else "answers"
+        return answer?.takeIf { it in 0..100 }
+    }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -256,15 +366,76 @@ class DeviceService : Service() {
                     connected.remove(it)
                     batteries.remove(it)
                 }
+                BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                    if (state == BluetoothAdapter.STATE_OFF || state == BluetoothAdapter.STATE_TURNING_OFF) {
+                        // The scan died with the adapter, and so did every link.
+                        scanning = false
+                        connected.clear()
+                        batteries.clear()
+                    }
+                }
                 ACTION_BATTERY_LEVEL_CHANGED -> {
-                    val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
-                    if (address != null && level in 0..100) batteries[address] = level
+                    val percent = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
+                    if (address != null) noteLevel(address, percent, "broadcast")
+                }
+                ACTION_HF_INDICATOR -> {
+                    // Indicator 2 of the hands-free profile is the battery, in percent.
+                    val indicator = intent.getIntExtra(EXTRA_HF_INDICATOR_ID, -1)
+                    val value = intent.getIntExtra(EXTRA_HF_INDICATOR_VALUE, -1)
+                    if (address != null && indicator == 2) noteLevel(address, value, "hands-free indicator")
+                }
+                BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT -> {
+                    if (address != null) runCatching { onHeadsetEvent(address, intent) }
                 }
             }
             // Bonding, the adapter switching on or off, and all of the above change the list.
             scope.launch {
-                readSystemDevices()
-                onDevices(Devices.list.value)
+                gate.withLock {
+                    readSystemDevices()
+                    onDevices(Devices.list.value)
+                }
+            }
+        }
+    }
+
+    private fun noteLevel(address: String, percent: Int, from: String) {
+        if (percent !in 0..100) return
+        batteries[address] = percent
+        Diagnostics.lastLevel = "$from $percent %"
+    }
+
+    /**
+     * What a headset says about itself over the hands-free link, in the commands Apple and
+     * Plantronics defined and most headsets speak.
+     */
+    private fun onHeadsetEvent(address: String, intent: Intent) {
+        val command = intent.getStringExtra(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_CMD) ?: return
+
+        @Suppress("DEPRECATION")
+        val arguments = intent.extras?.get(BluetoothHeadset.EXTRA_VENDOR_SPECIFIC_HEADSET_EVENT_ARGS) as? Array<*> ?: return
+        when (command) {
+            // "vendor-product-version", in hexadecimal.
+            "+XAPL" -> {
+                val product = (arguments.getOrNull(0) as? String)?.split('-')?.getOrNull(1)?.toIntOrNull(16)
+                if (product != null) appleProducts.edit().putInt(address, product).apply()
+            }
+            // A count, then pairs of key and value. Key 1 is the battery, in tenths from 0 to 9.
+            "+IPHONEACCEV" -> {
+                var index = 1
+                while (index + 1 < arguments.size) {
+                    val value = arguments[index + 1] as? Int
+                    if (arguments[index] == 1 && value != null) noteLevel(address, (value + 1) * 10, "+IPHONEACCEV")
+                    index += 2
+                }
+            }
+            // "BATTERY", the level, the number of levels.
+            "+XEVENT" -> {
+                val value = arguments.getOrNull(1) as? Int
+                val steps = arguments.getOrNull(2) as? Int
+                if (arguments.getOrNull(0) == "BATTERY" && value != null && steps != null && steps > 1) {
+                    noteLevel(address, value * 100 / (steps - 1), "+XEVENT")
+                }
             }
         }
     }
@@ -275,9 +446,20 @@ class DeviceService : Service() {
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
             addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
             addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
             addAction(ACTION_BATTERY_LEVEL_CHANGED)
+            addAction(ACTION_HF_INDICATOR)
         }
         ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+
+        // Headset events carry the company that defined the command as a category, and
+        // only a filter naming that category receives them.
+        val headset = IntentFilter(BluetoothHeadset.ACTION_VENDOR_SPECIFIC_HEADSET_EVENT)
+        for (company in intArrayOf(APPLE, PLANTRONICS)) {
+            headset.addCategory(BluetoothHeadset.VENDOR_SPECIFIC_HEADSET_EVENT_COMPANY_ID_CATEGORY + "." + company)
+        }
+        ContextCompat.registerReceiver(this, receiver, headset, ContextCompat.RECEIVER_EXPORTED)
     }
 
     // --- Telling the user ---------------------------------------------------------------
@@ -392,15 +574,25 @@ class DeviceService : Service() {
         private const val NOTICE_ID = 3
         private const val UPDATE_EVERY_MS = 24 * 60 * 60 * 1000L
         private const val UPDATE_FIRST_MS = 10 * 60 * 1000L
+        private const val SCAN_SETTLE_MS = 30_000L
+        private const val SCAN_RESTART_MS = 20 * 60 * 1000L
         private const val CHANNEL_STATUS = "status"
         private const val CHANNEL_ALERTS = "alerts"
         private const val APPLE = 0x004C
+        private const val PLANTRONICS = 0x0055
+        private const val PROXIMITY_PAIRING: Byte = 0x07
+        private const val FAST_PAIR_UUID = 0xFE2C
+        private const val BATTERY_SERVICE_UUID = 0x180F
         private val FAST_PAIR: ParcelUuid = ParcelUuid.fromString("0000fe2c-0000-1000-8000-00805f9b34fb")
         private val AUDIO_KINDS = setOf("earbuds", "headphones", "headset", "speaker")
 
-        /** Broadcast with the battery of a connected device; not in the public interface, but stable. */
+        // Broadcasts Android sends about a connected device. They are not in the public
+        // interface, but have kept these names for many versions.
         private const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         private const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"
+        private const val ACTION_HF_INDICATOR = "android.bluetooth.headset.action.HF_INDICATORS_VALUE_CHANGED"
+        private const val EXTRA_HF_INDICATOR_ID = "android.bluetooth.headset.extra.HF_INDICATORS_IND_ID"
+        private const val EXTRA_HF_INDICATOR_VALUE = "android.bluetooth.headset.extra.HF_INDICATORS_IND_VALUE"
 
         @Volatile
         var running = false

@@ -1,22 +1,17 @@
 package ru.fhnb16.btmanage.ui
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TopAppBarColors
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -24,13 +19,15 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,8 +44,9 @@ import ru.fhnb16.btmanage.data.SettingsData
  *   capitals.
  * - Eclair recalls Android 2.1: black or white, the orange highlight, a grey title bar.
  *
- * All of them run on the same Material 3 components. A design changes their colours, shapes
- * and typography; the two historical ones are a likeness, not a rebuild of the old widgets.
+ * This file holds what a design is made of: colours, shapes, type. The controls each design
+ * draws for itself (switches, tabs, buttons, lists) are in `Controls.kt`; only Material You
+ * uses the Material 3 components as they come.
  */
 enum class DesignStyle { MATERIAL, FLUENT, HOLO, ECLAIR }
 
@@ -77,6 +75,20 @@ fun AppTheme(settings: SettingsData, content: @Composable () -> Unit) {
         DesignStyle.HOLO -> holoColors(bluetooth, dark)
         DesignStyle.ECLAIR -> eclairColors(bluetooth, dark)
     }
+    // The icons of the status bar follow the theme of the application, not of the system.
+    // Android 2.1 kept its status bar black in either theme.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window
+            if (window != null) {
+                val bars = WindowCompat.getInsetsController(window, view)
+                bars.isAppearanceLightStatusBars = !dark && design != DesignStyle.ECLAIR
+                bars.isAppearanceLightNavigationBars = !dark
+            }
+        }
+    }
+
     CompositionLocalProvider(LocalDesign provides design) {
         MaterialTheme(
             colorScheme = colors,
@@ -269,8 +281,6 @@ private val FluentShapes = Shapes(
     large = RoundedCornerShape(8.dp),
     extraLarge = RoundedCornerShape(8.dp),
 )
-
-private val FluentControlShape: CornerBasedShape = RoundedCornerShape(4.dp)
 
 /**
  * The Windows type ramp on the system typeface: caption 12/16, body 14/20, body strong
@@ -476,21 +486,18 @@ private val EclairTypography: Typography = Typography().let { base ->
     )
 }
 
-/** The title bar of Android 2.1 was dark grey in the light theme and the dark one alike. */
-private val EclairTitleBar = Color(0xFF4A4A4A)
 
 // --- Pieces that differ between the looks -------------------------------------------------
 
 /**
- * A group of content: a tonal card in Material, a flat panel with a hairline border in the
- * other designs.
+ * A group of content: a tonal card in Material, a card with a hairline border in Fluent.
+ * The two historical designs knew no cards: there the content lies straight on the page.
  */
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    if (LocalDesign.current == DesignStyle.MATERIAL) {
-        Card(modifier = modifier, content = content)
-    } else {
-        Surface(
+    when (LocalDesign.current) {
+        DesignStyle.MATERIAL -> Card(modifier = modifier, content = content)
+        DesignStyle.FLUENT -> Surface(
             modifier = modifier,
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -498,30 +505,7 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
         ) {
             Column(content = content)
         }
-    }
-}
-
-/** The corners of buttons and segmented rows, or null for the pills of Material. */
-@Composable
-private fun controlShape(): CornerBasedShape? = when (LocalDesign.current) {
-    DesignStyle.MATERIAL -> null
-    DesignStyle.FLUENT -> FluentControlShape
-    DesignStyle.HOLO -> RoundedCornerShape(2.dp)
-    DesignStyle.ECLAIR -> RoundedCornerShape(3.dp)
-}
-
-/** Shape of buttons: the pill of Material, or the small corners of the other designs. */
-@Composable
-fun buttonShape(): Shape = controlShape() ?: ButtonDefaults.shape
-
-/** Shape of one option in a segmented row. */
-@Composable
-fun segmentShape(index: Int, count: Int): Shape {
-    val base = controlShape()
-    return if (base != null) {
-        SegmentedButtonDefaults.itemShape(index = index, count = count, baseShape = base)
-    } else {
-        SegmentedButtonDefaults.itemShape(index = index, count = count)
+        else -> Column(modifier = modifier, content = content)
     }
 }
 
@@ -529,21 +513,5 @@ fun segmentShape(index: Int, count: Int): Shape {
 @Composable
 fun String.caps(): String = if (LocalDesign.current == DesignStyle.HOLO) uppercase() else this
 
-/** Colours of the top bar: the grey title bar of Android 2.1, the action bar of Holo. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun topBarColors(): TopAppBarColors {
-    val scheme = MaterialTheme.colorScheme
-    return when (LocalDesign.current) {
-        DesignStyle.ECLAIR -> TopAppBarDefaults.topAppBarColors(
-            containerColor = EclairTitleBar,
-            titleContentColor = Color.White,
-            navigationIconContentColor = Color.White,
-        )
-        DesignStyle.HOLO -> TopAppBarDefaults.topAppBarColors(
-            containerColor = scheme.surfaceContainerHigh,
-            titleContentColor = scheme.onSurface,
-        )
-        else -> TopAppBarDefaults.topAppBarColors()
-    }
-}
+/** Whether the design lays its content out as lists with dividers rather than as cards. */
+val DesignStyle.isHistorical: Boolean get() = this == DesignStyle.HOLO || this == DesignStyle.ECLAIR

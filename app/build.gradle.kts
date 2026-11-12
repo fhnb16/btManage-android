@@ -78,6 +78,11 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+    // Shizuku: connecting and disconnecting devices needs rights only the shell has.
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    // Android 9 to 12 hide the battery level of a paired device from applications.
+    implementation(libs.hiddenapibypass)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
