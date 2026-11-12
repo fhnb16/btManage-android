@@ -12,7 +12,8 @@ Android 8.0 (API 26) or later.
 - **Device page.** Batteries, an estimate of the time left, a chart of the last 24 hours, type, address, profiles, signal.
 - **Notifications.** A quiet ongoing one with the current levels; alerts when your headphones connect and when a battery runs low.
 - **Widget.** The levels of up to four devices on the home screen. Configured in the application's settings: how many devices and which, layout (side by side, stacked, grid), detail (one level, or each battery), background (solid, translucent, none), theme and accent colour. Android gives a widget no way to blur the wallpaper behind it, so there is no blur option.
-- **Settings.** Notifications and their threshold, theme, accent colour (from the wallpaper, or Bluetooth blue), start with the phone, updates.
+- **Two designs.** Material You, Android's own look, with colours from the wallpaper on Android 12 and later; and Fluent, the look of the Windows application: grey surfaces, bordered cards, small corners, the Windows type sizes. The widget follows the choice.
+- **Settings**, on four tabs. General: notifications and their threshold, start with the phone. Appearance: design, theme, accent colour (the system's, or Bluetooth blue). Widget. About: updates and versions.
 - **Updates.** Looks at the GitHub releases of this repository when the application opens and offers the newer APK for download.
 
 A background service does the watching. It keeps scanning with the screen off and starts with the phone unless switched off in the settings.

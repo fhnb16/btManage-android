@@ -31,6 +31,8 @@ data class SettingsData(
     val notifyLow: Boolean = true,
     /** At or below this level, and not charging, a battery counts as low. */
     val lowThreshold: Int = 20,
+    /** The look of the application: "material" for Material You, "fluent" for the Windows look. */
+    val design: String = "material",
     val theme: ThemeChoice = "system",
     val accent: AccentChoice = "system",
     /** Start watching the devices when the phone starts. */
@@ -62,6 +64,7 @@ object Settings {
             notifyArrival = prefs.getBoolean("notifyArrival", defaults.notifyArrival),
             notifyLow = prefs.getBoolean("notifyLow", defaults.notifyLow),
             lowThreshold = prefs.getInt("lowThreshold", defaults.lowThreshold),
+            design = prefs.getString("design", defaults.design)!!,
             theme = prefs.getString("theme", defaults.theme)!!,
             accent = prefs.getString("accent", defaults.accent)!!,
             startOnBoot = prefs.getBoolean("startOnBoot", defaults.startOnBoot),
@@ -87,6 +90,7 @@ object Settings {
             putBoolean("notifyArrival", next.notifyArrival)
             putBoolean("notifyLow", next.notifyLow)
             putInt("lowThreshold", next.lowThreshold)
+            putString("design", next.design)
             putString("theme", next.theme)
             putString("accent", next.accent)
             putBoolean("startOnBoot", next.startOnBoot)

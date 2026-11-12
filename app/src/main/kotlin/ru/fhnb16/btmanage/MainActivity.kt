@@ -10,12 +10,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
@@ -24,10 +22,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,20 +32,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Settings
-import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.UpdateInfo
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.service.DeviceService
+import ru.fhnb16.btmanage.ui.AppTheme
 import ru.fhnb16.btmanage.ui.DeviceDetail
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.ui.DevicesScreen
 import ru.fhnb16.btmanage.ui.SettingsScreen
+import ru.fhnb16.btmanage.ui.buttonShape
 
 class MainActivity : ComponentActivity() {
     /** The device a notification or a widget asked for. */
@@ -78,40 +72,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_DEVICE = "device"
     }
 }
-
-/** Material 3 in the theme and the accent the user chose. */
-@Composable
-fun AppTheme(settings: SettingsData, content: @Composable () -> Unit) {
-    val dark = when (settings.theme) {
-        "light" -> false
-        "dark" -> true
-        else -> isSystemInDarkTheme()
-    }
-    val context = LocalContext.current
-    val colors: ColorScheme = when {
-        settings.accent == "bluetooth" -> if (dark) BluetoothDark else BluetoothLight
-        // The colours Android derives from the wallpaper, from Android 12 on.
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        dark -> darkColorScheme()
-        else -> lightColorScheme()
-    }
-    MaterialTheme(colorScheme = colors, content = content)
-}
-
-private val BluetoothLight = lightColorScheme(
-    primary = Color(0xFF0067D6),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFD6E9FF),
-    onPrimaryContainer = Color(0xFF001C3B),
-)
-
-private val BluetoothDark = darkColorScheme(
-    primary = Color(0xFF8CC4FF),
-    onPrimary = Color(0xFF003063),
-    primaryContainer = Color(0xFF00468C),
-    onPrimaryContainer = Color(0xFFD6E9FF),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -194,7 +154,7 @@ private fun Message(
             Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (action != null) {
-            Button(onClick = onAction, modifier = Modifier.padding(top = 8.dp)) { Text(action) }
+            Button(onClick = onAction, modifier = Modifier.padding(top = 8.dp), shape = buttonShape()) { Text(action) }
         }
     }
 }

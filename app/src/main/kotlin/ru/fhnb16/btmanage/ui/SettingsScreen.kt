@@ -3,6 +3,7 @@ package ru.fhnb16.btmanage.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,16 +12,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +45,7 @@ import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.data.WidgetConfig
 import ru.fhnb16.btmanage.widget.BatteryWidget
 
-/** Notifications, appearance, the widget, start-up and updates. */
+/** The settings, one tab per subject: general, appearance, the widget, about. */
 @Composable
 fun SettingsScreen(
     devices: List<Device>,
@@ -49,26 +54,47 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onUpdate: (UpdateInfo?) -> Unit,
 ) {
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf(
+        R.string.settings_tab_general,
+        R.string.settings_tab_appearance,
+        R.string.settings_tab_widget,
+        R.string.settings_tab_about,
+    )
+
+    Column(modifier) {
+        // Scrollable, so the labels keep their full width on a narrow screen.
+        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 16.dp) {
+            tabs.forEachIndexed { index, title ->
+                Tab(selected = tab == index, onClick = { tab = index }, text = { Text(stringResource(title)) })
+            }
+        }
+
+        // Keyed by the tab, so each page starts at its top.
+        key(tab) {
+            Column(
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when (tab) {
+                    0 -> GeneralPage(settings)
+                    1 -> AppearancePage(settings)
+                    2 -> WidgetPage(devices, settings)
+                    else -> AboutPage(settings, update, onUpdate)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GeneralPage(settings: SettingsData) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     fun change(edit: (SettingsData) -> SettingsData) = Settings.update(context, edit)
 
-    // A change to the widget is applied to the widgets on the home screen at once.
-    fun widget(edit: (WidgetConfig) -> WidgetConfig) {
-        change { it.copy(widget = edit(it.widget)) }
-        scope.launch { runCatching { BatteryWidget().updateAll(context) } }
-    }
-
-    val theme = listOf("system" to R.string.choice_system, "light" to R.string.theme_light, "dark" to R.string.theme_dark)
-    val accent = listOf("system" to R.string.choice_system, "bluetooth" to R.string.accent_bluetooth)
-
-    Column(
-        modifier
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Section(R.string.settings_notifications)
+    Group(R.string.settings_notifications) {
         Toggle(R.string.setting_notify_arrival, settings.notifyArrival) { on -> change { it.copy(notifyArrival = on) } }
         Toggle(R.string.setting_notify_low, settings.notifyLow) { on -> change { it.copy(notifyLow = on) } }
         Choice(
@@ -76,13 +102,51 @@ fun SettingsScreen(
             listOf(10, 20, 30).map { it to DeviceText.percent(context, it) },
             settings.lowThreshold,
         ) { value -> change { it.copy(lowThreshold = value) } }
+    }
 
-        Section(R.string.settings_appearance)
-        Choice(R.string.setting_theme, theme.labelled(), settings.theme) { value -> change { it.copy(theme = value) } }
-        Choice(R.string.setting_accent, accent.labelled(), settings.accent) { value -> change { it.copy(accent = value) } }
+    Group(R.string.settings_background) {
+        Toggle(R.string.setting_start_on_boot, settings.startOnBoot) { on -> change { it.copy(startOnBoot = on) } }
+    }
+}
 
-        Section(R.string.settings_widget)
-        val config = settings.widget
+@Composable
+private fun AppearancePage(settings: SettingsData) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    fun change(edit: (SettingsData) -> SettingsData) = Settings.update(context, edit)
+
+    Group(R.string.setting_design) {
+        Choice(
+            null,
+            listOf("material" to R.string.design_material, "fluent" to R.string.design_fluent).labelled(),
+            settings.design,
+        ) { value ->
+            change { it.copy(design = value) }
+            // The widget follows the design of the application.
+            scope.launch { runCatching { BatteryWidget().updateAll(context) } }
+        }
+        Note(if (settings.design == "fluent") R.string.design_fluent_note else R.string.design_material_note)
+    }
+
+    Group(R.string.settings_colours) {
+        Choice(R.string.setting_theme, themeOptions().labelled(), settings.theme) { value -> change { it.copy(theme = value) } }
+        Choice(R.string.setting_accent, accentOptions().labelled(), settings.accent) { value -> change { it.copy(accent = value) } }
+    }
+}
+
+@Composable
+private fun WidgetPage(devices: List<Device>, settings: SettingsData) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val config = settings.widget
+
+    // A change is applied to the widgets on the home screen at once.
+    fun widget(edit: (WidgetConfig) -> WidgetConfig) {
+        Settings.update(context) { it.copy(widget = edit(it.widget)) }
+        scope.launch { runCatching { BatteryWidget().updateAll(context) } }
+    }
+
+    Group(R.string.widget_group_content) {
         Choice(R.string.widget_count, (1..4).map { it to it.toString() }, config.count) { value ->
             widget { it.copy(count = value) }
         }
@@ -96,6 +160,9 @@ fun SettingsScreen(
             listOf("compact" to R.string.style_compact, "detailed" to R.string.style_detailed).labelled(),
             config.style,
         ) { value -> widget { it.copy(style = value) } }
+    }
+
+    Group(R.string.widget_group_look) {
         Choice(
             R.string.widget_background,
             listOf(
@@ -106,10 +173,11 @@ fun SettingsScreen(
             config.background,
         ) { value -> widget { it.copy(background = value) } }
         Note(R.string.widget_blur_note)
-        Choice(R.string.widget_theme, theme.labelled(), config.theme) { value -> widget { it.copy(theme = value) } }
-        Choice(R.string.widget_accent, accent.labelled(), config.accent) { value -> widget { it.copy(accent = value) } }
+        Choice(R.string.setting_theme, themeOptions().labelled(), config.theme) { value -> widget { it.copy(theme = value) } }
+        Choice(R.string.setting_accent, accentOptions().labelled(), config.accent) { value -> widget { it.copy(accent = value) } }
+    }
 
-        Text(stringResource(R.string.widget_devices), style = MaterialTheme.typography.bodyLarge)
+    Group(R.string.widget_devices) {
         Note(R.string.widget_devices_hint)
         for (device in devices.filter { it.paired || it.id in config.devices }) {
             val checked = device.id in config.devices
@@ -123,12 +191,18 @@ fun SettingsScreen(
                 Text(DeviceText.name(context, device), maxLines = 1)
             }
         }
+    }
+}
 
-        Section(R.string.settings_background)
-        Toggle(R.string.setting_start_on_boot, settings.startOnBoot) { on -> change { it.copy(startOnBoot = on) } }
+@Composable
+private fun AboutPage(settings: SettingsData, update: UpdateInfo?, onUpdate: (UpdateInfo?) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-        Section(R.string.settings_updates)
-        Toggle(R.string.setting_auto_update, settings.checkUpdates) { on -> change { it.copy(checkUpdates = on) } }
+    Group(R.string.settings_updates) {
+        Toggle(R.string.setting_auto_update, settings.checkUpdates) { on ->
+            Settings.update(context) { it.copy(checkUpdates = on) }
+        }
         var checking by remember { mutableStateOf(false) }
         var checked by remember { mutableStateOf(false) }
         if (update != null) {
@@ -137,6 +211,7 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Button(
                     enabled = !checking,
+                    shape = buttonShape(),
                     onClick = {
                         checking = true
                         scope.launch {
@@ -157,8 +232,9 @@ fun SettingsScreen(
                 }
             }
         }
+    }
 
-        Section(R.string.settings_about)
+    Group(R.string.settings_about) {
         Text(
             stringResource(R.string.about_version, BuildConfig.VERSION_NAME, if (Native.available) Native.version() else "—"),
             style = MaterialTheme.typography.bodyMedium,
@@ -167,17 +243,31 @@ fun SettingsScreen(
     }
 }
 
+private fun themeOptions() =
+    listOf("system" to R.string.choice_system, "light" to R.string.theme_light, "dark" to R.string.theme_dark)
+
+private fun accentOptions() =
+    listOf("system" to R.string.choice_system, "bluetooth" to R.string.accent_bluetooth)
+
 @Composable
 private fun List<Pair<String, Int>>.labelled(): List<Pair<String, String>> = map { (value, label) -> value to stringResource(label) }
 
+/** A titled group of settings on one panel. */
 @Composable
-private fun Section(title: Int) {
+private fun Group(title: Int, content: @Composable ColumnScope.() -> Unit) {
     Text(
         stringResource(title),
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 12.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
     )
+    Panel(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
+    }
 }
 
 @Composable
@@ -193,17 +283,19 @@ private fun Toggle(label: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
     }
 }
 
-/** A label over a row of mutually exclusive options. */
+/** A row of mutually exclusive options, under a label if there is one. */
 @Composable
-private fun <T> Choice(label: Int, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+private fun <T> Choice(label: Int?, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        if (label != null) {
+            Text(stringResource(label), style = MaterialTheme.typography.bodyLarge)
+        }
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             options.forEachIndexed { index, (value, text) ->
                 SegmentedButton(
                     selected = value == selected,
                     onClick = { onSelect(value) },
-                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                    shape = segmentShape(index, options.size),
                     // No check mark: it would shift the label of the chosen option.
                     icon = {},
                 ) {

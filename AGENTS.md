@@ -21,7 +21,11 @@ The maintainer tests on Windows only. This application has been compiled and pac
 
 ## Interface
 
-Material 3, with the colours Android derives from the wallpaper unless the user picks Bluetooth blue.
+Two designs, chosen in the settings and defined in `ui/Design.kt`: Material You (Material 3, colours from the wallpaper unless the user picks Bluetooth blue) and Fluent (the palette, corners and type sizes of the Windows application). Both run on the same Material 3 components; the design changes the colour scheme, shapes and typography.
+
+- Screens must look right in both. Do not use `Card`, a button's default shape or `SegmentedButtonDefaults.itemShape` directly: use `Panel`, `buttonShape()` and `segmentShape()` from `ui/Design.kt`, which pick the right form.
+- Take colours from `MaterialTheme.colorScheme` only. A literal colour in a screen breaks one of the designs.
+- The widget has no Compose theme; its colours for each design are in `palette` in `widget/BatteryWidget.kt`.
 
 - One accent, kept for the charge meters, the leading line of the chart and the selection. The error colour only for a low battery.
 - Numbers use tabular figures and one format (`DeviceText.percent`).

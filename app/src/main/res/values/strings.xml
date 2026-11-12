@@ -73,7 +73,16 @@
     <string name="setting_notify_arrival">When headphones connect or come near</string>
     <string name="setting_notify_low">When a battery runs low</string>
     <string name="setting_threshold">Low battery threshold</string>
-    <string name="settings_appearance">Appearance</string>
+    <string name="settings_tab_general">General</string>
+    <string name="settings_tab_appearance">Appearance</string>
+    <string name="settings_tab_widget">Widget</string>
+    <string name="settings_tab_about">About</string>
+    <string name="setting_design">Design</string>
+    <string name="design_material" translatable="false">Material You</string>
+    <string name="design_fluent" translatable="false">Fluent</string>
+    <string name="design_material_note">Android\'s own look. With the system accent the colours come from your wallpaper, on Android 12 and later</string>
+    <string name="design_fluent_note">The look of the Windows application: grey surfaces, bordered cards, small corners</string>
+    <string name="settings_colours">Colours</string>
     <string name="setting_theme">Theme</string>
     <string name="setting_accent">Accent colour</string>
     <string name="choice_system">System</string>
@@ -81,7 +90,8 @@
     <string name="theme_dark">Dark</string>
     <string name="accent_bluetooth">Bluetooth blue</string>
 
-    <string name="settings_widget">Widget</string>
+    <string name="widget_group_content">Content</string>
+    <string name="widget_group_look">Look</string>
     <string name="widget_count">Devices in the widget</string>
     <string name="widget_layout">Layout</string>
     <string name="layout_row">Side by side</string>
@@ -95,8 +105,6 @@
     <string name="background_translucent">Translucent</string>
     <string name="background_transparent">None</string>
     <string name="widget_blur_note">Android does not let a widget blur the wallpaper behind it, so the choice is how much of it shows through</string>
-    <string name="widget_theme">Widget theme</string>
-    <string name="widget_accent">Widget accent colour</string>
     <string name="widget_devices">Devices to show</string>
     <string name="widget_devices_hint">With none ticked, the widget shows the devices in use</string>
     <string name="widget_label">Battery levels</string>

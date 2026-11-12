@@ -8,7 +8,8 @@ Nothing here has been started on a phone. To confirm, in this order:
 - Paired devices are listed with the right kind and connection state. Connection state and the system battery level use calls outside the public interface.
 - AirPods levels arrive from advertisements, with the screen on and off. The scan permission is declared `neverForLocation`; if Android filters these advertisements because of it, the flag has to go and the location permission has to be asked for.
 - Notifications: the ongoing one, a headphone connecting, a low battery.
-- The widget in every layout, detail level, background and theme, in light and dark, at several sizes.
+- Both designs, Material You and Fluent, in light and dark, with the system accent and with Bluetooth blue: every screen and every settings tab. The Fluent look was written without ever being seen on a screen.
+- The widget in every layout, detail level, background and theme, in light and dark, at several sizes, in both designs.
 - The service starting with the phone.
 - A signed release installing over an earlier one.
 

@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -53,7 +54,8 @@ class BatteryWidget : GlanceAppWidget() {
             val settings by Settings.state.collectAsState()
             val config = settings.widget
             GlanceTheme {
-                Content(context, pick(devices, config), config, settings.lowThreshold, palette(config))
+                val look = palette(config, fluent = settings.design == "fluent")
+                Content(context, pick(devices, config), config, settings.lowThreshold, look)
             }
         }
     }
@@ -79,11 +81,16 @@ private class Palette(
     val accent: ColorProvider,
     val low: ColorProvider,
     val track: ColorProvider,
+    /** Corner radius of the widget. */
+    val corner: Dp,
 )
 
-/** Colours for the chosen theme, accent and background opacity. */
+/**
+ * Colours and corners for the design of the application and the widget's own theme, accent
+ * and background opacity.
+ */
 @Composable
-private fun palette(config: WidgetConfig): Palette {
+private fun palette(config: WidgetConfig, fluent: Boolean): Palette {
     // In the system theme each colour has a day and a night value; a fixed theme uses one for both.
     fun pair(light: Color, dark: Color): ColorProvider = when (config.theme) {
         "light" -> ColorProvider(light)
@@ -95,14 +102,43 @@ private fun palette(config: WidgetConfig): Palette {
         "transparent" -> 0f
         else -> 1f
     }
-    return Palette(
-        background = pair(Color(0xFFFFFFFF).copy(alpha = opacity), Color(0xFF1E1E22).copy(alpha = opacity)),
-        text = pair(Color(0xFF1B1B1F), Color(0xFFECECF0)),
-        secondary = pair(Color(0xFF5E5E66), Color(0xFFA9A9B2)),
-        accent = if (config.accent == "bluetooth") pair(Color(0xFF0067D6), Color(0xFF8CC4FF)) else GlanceTheme.colors.primary,
-        low = pair(Color(0xFFB3261E), Color(0xFFF2B8B5)),
-        track = pair(Color(0x1F000000), Color(0x29FFFFFF)),
-    )
+    val accent = if (config.accent == "bluetooth") pair(Color(0xFF0067D6), Color(0xFF8CC4FF)) else GlanceTheme.colors.primary
+    val track = pair(Color(0x1F000000), Color(0x29FFFFFF))
+
+    return when {
+        // Fluent: the card of the Windows application, with its small corners.
+        fluent -> Palette(
+            background = pair(Color(0xFFFBFBFB).copy(alpha = opacity), Color(0xFF2B2B2B).copy(alpha = opacity)),
+            text = pair(Color(0xFF1B1B1B), Color(0xFFFFFFFF)),
+            secondary = pair(Color(0xFF5D5D5D), Color(0xFFCDCDCD)),
+            accent = accent,
+            low = pair(Color(0xFFC42B1C), Color(0xFFFF99A4)),
+            track = track,
+            corner = 8.dp,
+        )
+        // Material You proper: with the system theme and a solid background every colour
+        // comes from the wallpaper, as in Android's own widgets.
+        config.theme == "system" && config.background == "solid" -> Palette(
+            background = GlanceTheme.colors.widgetBackground,
+            text = GlanceTheme.colors.onSurface,
+            secondary = GlanceTheme.colors.onSurfaceVariant,
+            accent = accent,
+            low = pair(Color(0xFFB3261E), Color(0xFFF2B8B5)),
+            track = track,
+            corner = 24.dp,
+        )
+        // Material with a fixed theme or a see-through background: the same neutral tones,
+        // which can take an opacity.
+        else -> Palette(
+            background = pair(Color(0xFFFFFFFF).copy(alpha = opacity), Color(0xFF1E1E22).copy(alpha = opacity)),
+            text = pair(Color(0xFF1B1B1F), Color(0xFFECECF0)),
+            secondary = pair(Color(0xFF5E5E66), Color(0xFFA9A9B2)),
+            accent = accent,
+            low = pair(Color(0xFFB3261E), Color(0xFFF2B8B5)),
+            track = track,
+            corner = 24.dp,
+        )
+    }
 }
 
 @Composable
@@ -112,7 +148,7 @@ private fun Content(context: Context, devices: List<Device>, config: WidgetConfi
         modifier = GlanceModifier
             .fillMaxSize()
             .background(palette.background)
-            .cornerRadius(16.dp)
+            .cornerRadius(palette.corner)
             .padding(12.dp)
             .clickable(actionStartActivity<MainActivity>()),
     ) {

@@ -286,7 +286,7 @@ class DeviceService : Service() {
         // Widgets are redrawn when what they show changes.
         val signature = devices.joinToString("|") { device ->
             "${device.id}:${device.isActive}:" + device.cells.joinToString(",") { "${it.percent}${it.charging}${it.isFresh}" }
-        } + settings.widget
+        } + settings.widget + settings.design
         if (signature != widgetSignature) {
             widgetSignature = signature
             runCatching { BatteryWidget().updateAll(this) }

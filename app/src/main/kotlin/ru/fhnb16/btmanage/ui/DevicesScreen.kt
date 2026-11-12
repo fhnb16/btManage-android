@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -107,7 +106,7 @@ fun DevicesScreen(
 @Composable
 fun UpdateBanner(update: UpdateInfo, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    Card(modifier.fillMaxWidth()) {
+    Panel(modifier.fillMaxWidth()) {
         Row(
             Modifier.padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +143,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Card(Modifier.fillMaxWidth()) {
+        Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(R.string.section_battery), style = MaterialTheme.typography.titleSmall)
                 if (device.cells.isEmpty()) {
@@ -167,7 +166,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
         }
 
         if (history.isNotEmpty()) {
-            Card(Modifier.fillMaxWidth()) {
+            Panel(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(stringResource(R.string.section_history), style = MaterialTheme.typography.titleSmall)
                     HistoryChart(history, device.isActive, Modifier.fillMaxWidth())
@@ -175,7 +174,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             }
         }
 
-        Card(Modifier.fillMaxWidth()) {
+        Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(stringResource(R.string.section_info), style = MaterialTheme.typography.titleSmall)
                 // Unknown facts are left out rather than shown empty.
