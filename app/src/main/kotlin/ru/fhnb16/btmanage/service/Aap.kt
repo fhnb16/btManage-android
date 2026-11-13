@@ -123,14 +123,18 @@ object Aap {
                 } finally {
                     watchdog.cancel()
                 }
-                for (kind in intArrayOf(HELLO, FEATURES, NOTIFICATIONS)) {
-                    val packet = Native.aapPacket(kind, 0)?.let(::bytes) ?: continue
-                    socket.outputStream.write(packet)
-                    socket.outputStream.flush()
-                    delay(PACKET_GAP_MS)
-                }
                 sockets[address] = socket
                 read(address, socket)
+                // The opening, twice over, as LibrePods does it: the AirPods do not always
+                // take it the first time, and the levels come only after it.
+                repeat(2) {
+                    for (kind in intArrayOf(HELLO, FEATURES, NOTIFICATIONS)) {
+                        val packet = Native.aapPacket(kind, 0)?.let(::bytes) ?: continue
+                        socket.outputStream.write(packet)
+                        socket.outputStream.flush()
+                        delay(PACKET_GAP_MS)
+                    }
+                }
                 null
             } catch (error: Throwable) {
                 describe(error)
@@ -141,6 +145,8 @@ object Aap {
             set(address, Link(State.READY))
             Diagnostics.aap = "open to …${address.takeLast(5)}"
         } else {
+            // A channel that opened but failed during the opening is closed again.
+            sockets.remove(address)?.let { runCatching { it.close() } }
             failures[address] = (failures[address] ?: 0) + 1
             set(address, Link(State.FAILED, failure))
             Diagnostics.aap = "failed: $failure"
@@ -193,8 +199,10 @@ object Aap {
                     if (length < 0) break
                     if (length == 0) continue
                     packets++
+                    val packet = buffer.copyOf(length)
                     Diagnostics.aapPackets = packets
-                    Devices.aap(address, buffer.copyOf(length))
+                    Diagnostics.notePacket(packet)
+                    Devices.aap(address, packet)
                 }
             } catch (_: IOException) {
             }
@@ -234,7 +242,7 @@ object Aap {
     private const val COMMAND_NOISE = 3
     private const val COMMAND_AWARENESS = 4
     private const val CONNECT_TIMEOUT_MS = 15_000L
-    private const val PACKET_GAP_MS = 150L
+    private const val PACKET_GAP_MS = 200L
     private const val RETRY_MS = 10 * 60 * 1000L
     private const val MAX_QUIET_TRIES = 3
     private const val BUFFER = 1024

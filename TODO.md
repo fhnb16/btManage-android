@@ -1,6 +1,12 @@
 # To do: Android
 
-## First: AirPods show no levels
+## First: AirPods levels over the accessory protocol
+
+0.4.0 on a Pixel 7 Pro with Android 16: the channel opens, noise control works, 34 packets arrived, and none of them gave a level. 0.4.1 opens the conversation as the LibrePods application does (feature flags `D7`, every notification asked for, all of it twice), where 0.4.0 followed the LibrePods description. If the levels still do not come, the diagnostics now list the packets by operation code with the last of each: the battery packet is code `04`, 22 bytes for a pair of earbuds and a case.
+
+Advertisements on the same phone: thousands of Apple messages of other types arrived, not one of type `07`, the one with the levels. Why the phone does not hear them, while a Windows computer does, is not known.
+
+## Earlier: AirPods show no levels
 
 Open since the first run, through 0.2.0 and 0.3.0, on the maintainer's phone, while the Windows application shows the same AirPods fine. The cause is not known: read as code, the path from the scan to the core is the one Windows uses. Ruled out: the `neverForLocation` flag (CAPod, OpenPods and LibrePods declare the scan the same way).
 

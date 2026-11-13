@@ -43,6 +43,22 @@ object Diagnostics {
     @Volatile
     var aapPackets = 0
 
+    /** Packets of the accessory protocol by their operation code, and the last one of each. */
+    private val aapCodes = ConcurrentHashMap<Int, AtomicInteger>()
+    private val aapLast = ConcurrentHashMap<Int, String>()
+
+    fun notePacket(packet: ByteArray) {
+        // Packets of the protocol open with 04 00 04 00, then the operation code.
+        val code = if (packet.size > 4 && packet[0] == 0x04.toByte() && packet[2] == 0x04.toByte()) {
+            packet[4].toInt() and 0xFF
+        } else {
+            -1
+        }
+        aapCodes.getOrPut(code) { AtomicInteger() }.incrementAndGet()
+        aapLast[code] = packet.take(24).joinToString(" ") { "%02X".format(it) } +
+            if (packet.size > 24) " … (${packet.size} bytes)" else ""
+    }
+
     /** How the last read of Android's own record of a device went: it takes Shizuku or root. */
     @Volatile
     var metadata = "not tried"
@@ -98,6 +114,10 @@ object Diagnostics {
             "last level event: $lastLevel",
             "Shizuku: ${if (Elevated.shizukuRunning()) (if (Elevated.shizukuGranted()) "allowed" else "running") else "not running"}",
             "accessory protocol: $aap, $aapPackets packets",
+            aapCodes.toSortedMap().entries.joinToString("\n") { (code, count) ->
+                val name = if (code < 0) "other" else "%02X".format(code)
+                "  $name x${count.get()}: ${aapLast[code].orEmpty()}"
+            }.ifEmpty { "  (no packets yet)" },
             "Android's record: $metadata",
             "last action: $lastAction",
         ).joinToString("\n")
