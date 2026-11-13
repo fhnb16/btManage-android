@@ -3,15 +3,14 @@
     <!-- Window theme shown until Compose draws its first frame. -->
     <style name="Theme.BtManage" parent="android:Theme.Material.Light.NoActionBar" />
 
-    <!-- The panel a tap on the widget opens: a window that lets the home screen show through.
-         The panel draws its own shade and its own motion (PopupActivity), so the window has
-         neither: no dimming, no opening or closing animation. -->
+    <!-- The panel a tap on the widget opens: a window over the lower half of the screen that
+         lets the home screen show through. Its background, blur, size and motion are set in
+         PopupActivity; nothing outside it is dimmed. -->
     <style name="Theme.BtManage.Popup">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:backgroundDimEnabled">false</item>
-        <item name="android:windowAnimationStyle">@null</item>
     </style>
 
     <color name="launcher_background">#0082FC</color>
