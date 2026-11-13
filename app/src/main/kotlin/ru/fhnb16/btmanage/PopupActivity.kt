@@ -1,5 +1,7 @@
 package ru.fhnb16.btmanage
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.drawable.GradientDrawable
@@ -12,6 +14,7 @@ import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
+import android.view.animation.PathInterpolator
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -65,7 +68,6 @@ import ru.fhnb16.btmanage.ui.noiseLabel
 import ru.fhnb16.btmanage.ui.pressable
 import ru.fhnb16.btmanage.ui.tabular
 import java.util.function.Consumer
-import kotlin.math.roundToInt
 
 /**
  * What a tap on the widget opens: a panel over the lower half of the home screen with the
@@ -78,8 +80,9 @@ import kotlin.math.roundToInt
  * Android 12, in battery saver, or with blur switched off), the panel is all but opaque so
  * that it stays readable.
  *
- * The window rises from the bottom edge and sinks back into it. A tap above it, Back, or a
- * pull on its top edge closes it; the pull moves the whole window, blur and all.
+ * The panel rises from the bottom edge and sinks back into it. A tap above it, Back, or a
+ * pull on its top edge closes it. The window itself stays in place; the panel moves inside
+ * it, and the blur moves with the panel's background.
  *
  * Written without a run on a device.
  */
@@ -91,31 +94,41 @@ class PopupActivity : ComponentActivity() {
     // The pull on the top edge of the panel, in screen pixels.
     private var dragFrom: Float? = null
     private var dragging = false
-    private var pulled = 0f
     private var velocity: VelocityTracker? = null
-    private var settling: ValueAnimator? = null
+    private var moving: ValueAnimator? = null
     private var closing = false
+
+    /**
+     * The window stays where it is, over the lower half of the screen; the panel moves
+     * inside it. The blur Android draws behind the window background follows the
+     * background as it moves, and what goes below the window is cut off at the bottom edge
+     * of the screen.
+     */
+    private val decor get() = window.decorView
+    private val offset: Float get() = decor.translationY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        animateOpening()
+        withoutWindowAnimation()
         Settings.load(this)
         Devices.open(this)
         DeviceService.start(this)
 
-        // The window reaches down behind the navigation bar, and may be pulled below the
-        // edge of the screen.
+        // The window lies over the lower half of the screen, down behind the navigation bar.
+        // Nothing outside it is dimmed or blurred: the panel's own fill shades what it blurs.
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-        // Nothing outside the panel is dimmed or blurred: its own fill shades what it blurs.
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setGravity(Gravity.BOTTOM)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            window.setBackgroundBlurRadius(BLUR_RADIUS)
-            // Told at once, and again whenever Android switches blur on or off.
-            val listener = Consumer<Boolean> { enabled -> blurred.value = enabled }
-            windowManager.addCrossWindowBlurEnabledListener(listener)
-            blurListener = listener
+            try {
+                window.setBackgroundBlurRadius(BLUR_RADIUS)
+                // Told at once, and again whenever Android switches blur on or off.
+                val listener = Consumer<Boolean> { enabled -> blurred.value = enabled }
+                windowManager.addCrossWindowBlurEnabledListener(listener)
+                blurListener = listener
+            } catch (_: Throwable) {
+                // No blur: the panel is drawn all but opaque.
+            }
         }
 
         setContent {
@@ -125,14 +138,19 @@ class PopupActivity : ComponentActivity() {
                 Popup(settings, onClose = { close() }, openApp = { open(it) })
             }
         }
-        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, panelHeight())
+        val height = panelHeight()
+        window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height)
+
+        // The panel starts below the edge of the screen and rises into place.
+        decor.translationY = height.toFloat()
+        decor.post { moveTo(0f, OPEN_MS, null) }
     }
 
     override fun onDestroy() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            blurListener?.let { windowManager.removeCrossWindowBlurEnabledListener(it) }
+            blurListener?.let { listener -> runCatching { windowManager.removeCrossWindowBlurEnabledListener(listener) } }
         }
-        settling?.cancel()
+        moving?.cancel()
         velocity?.recycle()
         super.onDestroy()
     }
@@ -147,27 +165,31 @@ class PopupActivity : ComponentActivity() {
         return screen / 2
     }
 
-    private fun animateOpening() {
+    /** The panel moves by itself; Android's own animation of the window would move it twice. */
+    private fun withoutWindowAnimation() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, R.anim.popup_enter, 0)
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, R.anim.popup_exit)
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         } else {
             @Suppress("DEPRECATION")
-            overridePendingTransition(R.anim.popup_enter, 0)
+            overridePendingTransition(0, 0)
         }
     }
 
+    /** Lets the panel sink below the edge of the screen, then ends the activity. */
     private fun close() {
         if (closing) return
         closing = true
-        finish()
+        dragging = false
+        dragFrom = null
+        moveTo(decor.height.toFloat(), CLOSE_MS) { finish() }
     }
 
     override fun finish() {
         super.finish()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             @Suppress("DEPRECATION")
-            overridePendingTransition(0, R.anim.popup_exit)
+            overridePendingTransition(0, 0)
         }
     }
 
@@ -177,27 +199,53 @@ class PopupActivity : ComponentActivity() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(MainActivity.EXTRA_DEVICE, deviceId)
         runCatching { startActivity(intent) }
-        close()
+        closing = true
+        finish()
+    }
+
+    /** Moves the panel to [target] pixels below its place, then does [then], if given. */
+    private fun moveTo(target: Float, millis: Long, then: (() -> Unit)?) {
+        moving?.cancel()
+        val animator = ValueAnimator.ofFloat(offset, target)
+        animator.duration = millis
+        animator.interpolator = PathInterpolator(0.2f, 0f, 0f, 1f)
+        animator.addUpdateListener { decor.translationY = it.animatedValue as Float }
+        if (then != null) {
+            animator.addListener(
+                object : AnimatorListenerAdapter() {
+                    private var cancelled = false
+
+                    override fun onAnimationCancel(animation: Animator) {
+                        cancelled = true
+                    }
+
+                    override fun onAnimationEnd(animation: Animator) {
+                        if (!cancelled) then()
+                    }
+                },
+            )
+        }
+        moving = animator
+        animator.start()
     }
 
     /**
      * A tap outside the panel closes it: the window takes every touch on the screen, and
-     * those outside it arrive with coordinates beyond its edges. A pull that starts on the
-     * top edge moves the window; it is followed in screen coordinates, since the window
-     * moves under the finger.
+     * those above it arrive with coordinates above its top. A pull that starts on the top
+     * edge of the panel moves it; the finger is followed in screen coordinates.
      */
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        val decor = window.decorView
+        if (closing) return true
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                val outside = event.y < 0 || event.y > decor.height || event.x < 0 || event.x > decor.width
+                val outside = event.y < offset || event.y > decor.height || event.x < 0 || event.x > decor.width
                 if (outside) {
                     close()
                     return true
                 }
-                settling?.cancel()
+                moving?.cancel()
                 dragging = false
-                dragFrom = if (event.y <= dp(PULL_EDGE)) event.rawY - pulled else null
+                dragFrom = if (event.y - offset <= dp(PULL_EDGE)) event.rawY - offset else null
                 velocity?.recycle()
                 velocity = VelocityTracker.obtain()
                 track(event)
@@ -208,7 +256,7 @@ class PopupActivity : ComponentActivity() {
                 if (from != null) {
                     track(event)
                     val pull = (event.rawY - from).coerceAtLeast(0f)
-                    if (!dragging && pull - pulled > ViewConfiguration.get(this).scaledTouchSlop) {
+                    if (!dragging && pull - offset > ViewConfiguration.get(this).scaledTouchSlop) {
                         dragging = true
                         // The controls under the finger let go of the touch.
                         val cancel = MotionEvent.obtain(event)
@@ -217,7 +265,7 @@ class PopupActivity : ComponentActivity() {
                         cancel.recycle()
                     }
                     if (dragging) {
-                        pullTo(pull)
+                        decor.translationY = pull
                         return true
                     }
                 }
@@ -232,11 +280,12 @@ class PopupActivity : ComponentActivity() {
                     velocity?.computeCurrentVelocity(1000)
                     val speed = velocity?.yVelocity ?: 0f
                     val away = event.actionMasked == MotionEvent.ACTION_UP &&
-                        (pulled > dp(PULL_TO_CLOSE) || speed > dp(FLING_TO_CLOSE))
-                    if (away) close() else settle()
+                        (offset > dp(PULL_TO_CLOSE) || speed > dp(FLING_TO_CLOSE))
+                    if (away) close() else moveTo(0f, SETTLE_MS, null)
                     return true
                 }
-                if (pulled > 0f) settle()
+                // A touch that stopped the panel on its way: let it finish the way into place.
+                if (offset > 0f) moveTo(0f, SETTLE_MS, null)
             }
         }
         return super.dispatchTouchEvent(event)
@@ -250,29 +299,12 @@ class PopupActivity : ComponentActivity() {
         screen.recycle()
     }
 
-    /** Moves the window down from its place by [pixels]. */
-    private fun pullTo(pixels: Float) {
-        pulled = pixels
-        val attributes = window.attributes
-        // With the window at the bottom, its offset counts upwards from the bottom edge.
-        attributes.y = -pixels.roundToInt()
-        window.attributes = attributes
-    }
-
-    /** Lets a window that was pulled, but not far enough, go back into place. */
-    private fun settle() {
-        settling?.cancel()
-        settling = ValueAnimator.ofFloat(pulled, 0f).apply {
-            duration = SETTLE_MS
-            addUpdateListener { pullTo(it.animatedValue as Float) }
-            start()
-        }
-    }
-
     private fun dp(value: Float): Float = value * resources.displayMetrics.density
 
     private companion object {
         const val BLUR_RADIUS = 48
+        const val OPEN_MS = 300L
+        const val CLOSE_MS = 220L
         const val SETTLE_MS = 200L
 
         /** How far down from the top of the panel a pull may start, in dp. */

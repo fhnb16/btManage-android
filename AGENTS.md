@@ -63,6 +63,7 @@ An APK built this way has no core library and shows "The core library is missing
 | `…/data/DeviceActions.kt` | Connect, disconnect, the codec: what is tried and in which order |
 | `…/data/Elevated.kt` | Shizuku and root: asking for them, running a command with them |
 | `…/data/Diagnostics.kt` | What the service has seen, for the diagnostics page |
+| `…/data/CrashLog.kt`, `…/BtManageApp.kt` | The last crash, kept in a file from the start of the process and shown in the diagnostics |
 | `…/data/Discovery.kt` | The search for devices to pair with, and the pairing |
 | `…/data/DeviceFacts.kt` | Android's own record of a device (levels of single earbuds, maker, model, firmware), read with Shizuku or root |
 | `…/PopupActivity.kt` | The panel a tap on the widget opens, over the home screen |

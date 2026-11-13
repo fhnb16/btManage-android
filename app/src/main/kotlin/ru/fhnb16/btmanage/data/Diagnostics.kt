@@ -11,6 +11,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * settings so that a report of "no battery level" comes with the reason.
  */
 object Diagnostics {
+    /** Lines of the last crash shown: the message and where it happened. */
+    private const val CRASH_LINES = 24
+
     /** State of the advertisement scan, in words. */
     @Volatile
     var scan = "not started"
@@ -120,6 +123,7 @@ object Diagnostics {
             }.ifEmpty { "  (no packets yet)" },
             "Android's record: $metadata",
             "last action: $lastAction",
+            "last crash: " + (CrashLog.last()?.lineSequence()?.take(CRASH_LINES)?.joinToString("\n  ") ?: "none"),
         ).joinToString("\n")
     }
 }
