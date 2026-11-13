@@ -19,6 +19,17 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## Android TV (0.5.0)
+
+Written without a TV at hand. To try on one:
+
+- The tile in the row of applications (`drawable/tv_banner.xml`), and that the application starts from it.
+- The remote alone: from the start, the first press of an arrow lands somewhere sensible; every control of every screen and settings tab is reached and shows the highlight (`Modifier.focusRing`) in all four designs; Back leaves a device page and closes the dialog of a new device.
+- The two tabs: the arrows between Devices and Settings, and that the pages do not slide over each other while the focus moves.
+- Lists scroll along with the highlight.
+- The margins at the edges of the picture, and the width of the content.
+- The Bluetooth permissions and the foreground service on a TV, and what Android TV allows in the background.
+
 ## Then: build and run 0.4.0
 
 Versions 0.3.0 and 0.4.0 were written without a compiler and without a phone at hand. In this order:

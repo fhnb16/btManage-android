@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -53,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -103,7 +105,7 @@ private val EclairTabChosen = Brush.verticalGradient(listOf(Color(0xFFF0F0F0), C
 @Composable
 fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
     val design = LocalDesign.current
-    if (!design.isHistorical) return clickable(enabled = enabled, onClick = onClick)
+    if (!design.isHistorical) return focusRing().clickable(enabled = enabled, onClick = onClick)
 
     val source = remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
@@ -114,7 +116,27 @@ fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
         Brush.verticalGradient(listOf(lerp(accent, Color.White, 0.4f), accent))
     }
     val base = if (pressed) background(wash) else this
-    return base.clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
+    return base.focusRing().clickable(interactionSource = source, indication = null, enabled = enabled, onClick = onClick)
+}
+
+/**
+ * Marks the element that has the focus of a remote control or a keyboard: a wash and an
+ * outline in the accent. Goes right before the modifier that makes the element focusable
+ * (`clickable` and the like). Compose gives an element the focus only while keys are in
+ * use, so a finger on a touch screen never brings the mark up.
+ */
+@Composable
+fun Modifier.focusRing(shape: Shape = RoundedCornerShape(4.dp)): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    val accent = MaterialTheme.colorScheme.primary
+    val mark = if (focused) {
+        Modifier
+            .background(accent.copy(alpha = 0.12f), shape)
+            .border(2.dp, accent, shape)
+    } else {
+        Modifier
+    }
+    return onFocusChanged { focused = it.isFocused }.then(mark)
 }
 
 /** A divider along the bottom edge, as lists had in Android 2.1 and 4.3. */
@@ -300,10 +322,11 @@ fun AppButton(
     val scheme = MaterialTheme.colorScheme
     when (LocalDesign.current) {
         DesignStyle.MATERIAL -> {
+            val focus = modifier.focusRing(RoundedCornerShape(percent = 50))
             if (primary) {
-                Button(onClick = onClick, modifier = modifier, enabled = enabled) { Text(text, maxLines = 1) }
+                Button(onClick = onClick, modifier = focus, enabled = enabled) { Text(text, maxLines = 1) }
             } else {
-                TextButton(onClick = onClick, modifier = modifier, enabled = enabled) { Text(text, maxLines = 1) }
+                TextButton(onClick = onClick, modifier = focus, enabled = enabled) { Text(text, maxLines = 1) }
             }
         }
 
@@ -373,6 +396,7 @@ private fun DrawnButton(
             .clip(shape)
             .then(if (background != null) Modifier.background(background) else Modifier)
             .then(if (edge != null) Modifier.border(1.dp, edge, shape) else Modifier)
+            .focusRing(shape)
             .clickable(interactionSource = source, indication = indication, enabled = enabled, role = Role.Button, onClick = onClick)
             .defaultMinSize(minWidth = 64.dp, minHeight = minHeight)
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -413,7 +437,9 @@ fun AppTopBar(title: String, onBack: (() -> Unit)?) {
             title = { Text(title, maxLines = 1) },
             navigationIcon = {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) { BackArrow(LocalContentColor.current) }
+                    IconButton(onClick = onBack, modifier = Modifier.focusRing(CircleShape)) {
+                        BackArrow(LocalContentColor.current)
+                    }
                 }
             },
         )
@@ -485,13 +511,23 @@ fun AppTabs(titles: List<String>, selected: Int, scrollable: Boolean = false, on
     } else if (scrollable) {
         ScrollableTabRow(selectedTabIndex = selected, edgePadding = 16.dp) {
             titles.forEachIndexed { index, title ->
-                Tab(selected = selected == index, onClick = { onSelect(index) }, text = { Text(title, maxLines = 1) })
+                Tab(
+                    selected = selected == index,
+                    onClick = { onSelect(index) },
+                    modifier = Modifier.focusRing(),
+                    text = { Text(title, maxLines = 1) },
+                )
             }
         }
     } else {
         PrimaryTabRow(selectedTabIndex = selected) {
             titles.forEachIndexed { index, title ->
-                Tab(selected = selected == index, onClick = { onSelect(index) }, text = { Text(title, maxLines = 1) })
+                Tab(
+                    selected = selected == index,
+                    onClick = { onSelect(index) },
+                    modifier = Modifier.focusRing(),
+                    text = { Text(title, maxLines = 1) },
+                )
             }
         }
     }
@@ -704,10 +740,12 @@ fun <T> SettingChoice(label: String?, options: List<Pair<T, String>>, selected: 
             if (label != null) Text(label, style = MaterialTheme.typography.bodyLarge)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 options.forEachIndexed { index, (value, text) ->
+                    val shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
                     SegmentedButton(
                         selected = value == selected,
                         onClick = { onSelect(value) },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        modifier = Modifier.focusRing(shape),
+                        shape = shape,
                         // No check mark: it would shift the label of the chosen option.
                         icon = {},
                     ) {
@@ -782,6 +820,7 @@ private fun SpinnerFace(text: String, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .then(face)
+            .focusRing(shape)
             .clickable(onClick = onClick)
             .defaultMinSize(minHeight = if (design == DesignStyle.FLUENT) 32.dp else 40.dp)
             .padding(horizontal = 12.dp, vertical = 6.dp),

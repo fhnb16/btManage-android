@@ -2,6 +2,7 @@ package ru.fhnb16.btmanage
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -11,9 +12,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
@@ -34,9 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Devices
 import kotlinx.coroutines.launch
 import ru.fhnb16.btmanage.data.Settings
+import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.service.DeviceService
 import ru.fhnb16.btmanage.ui.AppButton
@@ -136,48 +142,67 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
     val selected = requested?.let { id -> devices.firstOrNull { it.id == id } }
     BackHandler(enabled = selected != null) { select(null) }
 
+    // A television may crop the edges of the picture, so the application keeps clear of
+    // them there, as Android TV asks.
+    val tv = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) }
+
     AppTheme(settings) {
-        Scaffold(
-            topBar = {
-                Column {
-                    AppTopBar(
-                        title = selected?.let { DeviceText.name(context, it) } ?: stringResource(R.string.app_name),
-                        onBack = if (selected != null) ({ select(null) }) else null,
-                    )
-                    if (selected == null && granted && Devices.available) {
-                        AppTabs(
-                            titles = listOf(stringResource(R.string.tab_devices), stringResource(R.string.tab_settings)),
-                            selected = pager.currentPage,
-                        ) { page -> scope.launch { pager.animateScrollToPage(page) } }
-                    }
-                }
-            },
-        ) { padding ->
-            val modifier = Modifier.padding(padding)
-            when {
-                !Devices.available -> Message(stringResource(R.string.core_missing), null, modifier)
-                !granted -> Message(
-                    title = stringResource(R.string.permission_title),
-                    hint = stringResource(R.string.permission_hint),
-                    modifier = modifier,
-                    action = stringResource(R.string.permission_grant),
-                ) {
-                    val wanted = DeviceService.requiredPermissions().toMutableList()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) wanted += Manifest.permission.POST_NOTIFICATIONS
-                    permissions.launch(wanted.toTypedArray())
-                }
-                selected != null -> DeviceDetail(selected, settings, modifier)
-                else -> HorizontalPager(
-                    state = pager,
-                    modifier = modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.Top,
-                ) { page ->
-                    if (page == 0) {
-                        DevicesScreen(devices, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
-                            select(it)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .then(if (tv) Modifier.padding(horizontal = 48.dp, vertical = 27.dp) else Modifier),
+        ) {
+            Scaffold(
+                topBar = {
+                    Column {
+                        AppTopBar(
+                            title = selected?.let { DeviceText.name(context, it) } ?: stringResource(R.string.app_name),
+                            onBack = if (selected != null) ({ select(null) }) else null,
+                        )
+                        if (selected == null && granted && Devices.available) {
+                            AppTabs(
+                                titles = listOf(stringResource(R.string.tab_devices), stringResource(R.string.tab_settings)),
+                                selected = pager.currentPage,
+                            ) { page -> scope.launch { pager.animateScrollToPage(page) } }
                         }
-                    } else {
-                        SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
+                    }
+                },
+            ) { padding ->
+                // On a wide screen, a tablet or a television, the content keeps a readable
+                // width in the middle instead of running from edge to edge.
+                Box(
+                    Modifier
+                        .padding(padding)
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    Screen(
+                        modifier = Modifier
+                            .widthIn(max = CONTENT_MAX_WIDTH)
+                            .fillMaxSize(),
+                        settings = settings,
+                        granted = granted,
+                        selected = selected,
+                        onGrant = {
+                            val wanted = DeviceService.requiredPermissions().toMutableList()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) wanted += Manifest.permission.POST_NOTIFICATIONS
+                            permissions.launch(wanted.toTypedArray())
+                        },
+                    ) {
+                        HorizontalPager(
+                            state = pager,
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.Top,
+                        ) { page ->
+                            if (page == 0) {
+                                DevicesScreen(devices, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
+                                    select(it)
+                                }
+                            } else {
+                                SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
+                            }
+                        }
                     }
                 }
             }
@@ -185,6 +210,36 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
         if (pairing) PairingDialog { pairing = false }
     }
 }
+
+/**
+ * What the window shows under its bar: that the core is missing, the request for the
+ * Bluetooth permissions, the page of one device, or else [pages], the two tabs.
+ */
+@Composable
+private fun Screen(
+    modifier: Modifier,
+    settings: SettingsData,
+    granted: Boolean,
+    selected: Device?,
+    onGrant: () -> Unit,
+    pages: @Composable () -> Unit,
+) {
+    when {
+        !Devices.available -> Message(stringResource(R.string.core_missing), null, modifier)
+        !granted -> Message(
+            title = stringResource(R.string.permission_title),
+            hint = stringResource(R.string.permission_hint),
+            modifier = modifier,
+            action = stringResource(R.string.permission_grant),
+            onAction = onGrant,
+        )
+        selected != null -> DeviceDetail(selected, settings, modifier)
+        else -> Box(modifier) { pages() }
+    }
+}
+
+/** The widest the content of a screen gets. */
+private val CONTENT_MAX_WIDTH = 840.dp
 
 /** A title, an explanation and at most one thing to do. */
 @Composable

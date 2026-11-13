@@ -2,7 +2,7 @@
 
 Shows the battery of your Bluetooth devices: in the application, in notifications and in a home screen widget. Earbuds get a level for each bud and the case. Kotlin, Jetpack Compose and Glance; the device list, the history and the parsing come from the Rust core.
 
-Android 8.0 (API 26) or later.
+Android 8.0 (API 26) or later, on phones, tablets and Android TV. On a TV the application is in the row of applications on the home screen and is driven with the remote: the arrows move a highlight from control to control, the centre button presses, Back goes back. The content keeps clear of the edges of the picture and does not grow wider than a readable column. Android TV has no home screen widgets, so the widget and its panel are absent there.
 
 **Barely run on a device.** On the maintainer's phone the paired devices are listed, but AirPods have shown no levels so far, in 0.2.0 and in 0.3.0; the cause is not known. Version 0.4.0 reads the advertisements more carefully, no longer depends on the name of the pairing, and reports much more under Settings, About, Diagnostics: that text is what a report of a missing level needs. Everything added in 0.3.0 and 0.4.0 was written without a compiler and without a phone at hand. Expect rough edges; what is known to be open is in [TODO.md](TODO.md).
 

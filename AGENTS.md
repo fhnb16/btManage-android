@@ -30,6 +30,7 @@ When something does not work on the phone, ask for the text under Settings, Abou
 Four designs, chosen in the settings: Material You (Material 3, colours from the wallpaper unless the user picks Bluetooth blue), Fluent (after the Windows application), Holo (Android 4.3) and Eclair (Android 2.1). `ui/Design.kt` holds their colours, shapes and type. `ui/Controls.kt` holds their controls: Material You uses the Material 3 components, the other three draw their own.
 
 - Screens must look right in all of them, so screens do not use Material 3 controls directly. Use what `ui/Controls.kt` offers: `AppTopBar`, `AppTabs`, `AppButton`, `Section` with `Modifier.entry()` or `Entry` for its children, `SettingToggle`, `SettingChoice`, `OptionRow`, `Note`, `Modifier.pressable` for anything that is tapped, `Modifier.page()` for the padding of a scrolling page; and `Panel` from `ui/Design.kt` for a card. A new kind of control gets a branch per design there, not an `if` in a screen.
+- Everything that is tapped must also work with a TV remote or a keyboard, and show where the focus is. `Modifier.pressable` and the controls of `ui/Controls.kt` do both; anything made with `clickable` directly, or a Material 3 control used directly, gets `Modifier.focusRing()` right before it.
 - Take colours from `MaterialTheme.colorScheme` in screens. Colours that belong to one design only (the grey gradients of Android 2.1) are constants in `ui/Controls.kt`.
 - The widget has no Compose theme; its colours for each design are in `palette` in `widget/BatteryWidget.kt`.
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tile of the application in the Android TV launcher: the mark of the launcher icon
+     (drawable/ic_launcher_foreground.xml) on its blue, in the 16:9 of a TV banner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="@color/launcher_background"
+        android:pathData="M 0,0 H 320 V 180 H 0 Z" />
+    <!-- The 16-unit mark, scaled by 6.5 and centred. -->
+    <group
+        android:scaleX="6.5"
+        android:scaleY="6.5"
+        android:translateX="108"
+        android:translateY="38">
+        <path
+            android:pathData="M 5.8,8 L 10.2,5.3 L 5.8,2.6 L 5.8,13.4 L 10.2,10.7 L 5.8,8"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.6"
+            android:strokeLineJoin="miter"
+            android:strokeMiterLimit="6" />
+        <path
+            android:pathData="M 2.87,12.62 A 6.9,6.9 0 0 1 2.87,3.38 M 13.13,3.38 A 6.9,6.9 0 0 1 13.13,12.62"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.25"
+            android:strokeLineCap="round" />
+    </group>
+</vector>
