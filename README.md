@@ -6,6 +6,11 @@ Android 8.0 (API 26) or later, on phones, tablets and Android TV. On a TV the ap
 
 **Barely run on a device.** On the maintainer's phone the paired devices are listed, but AirPods have shown no levels so far, in 0.2.0 and in 0.3.0; the cause is not known. Version 0.4.0 reads the advertisements more carefully, no longer depends on the name of the pairing, and reports much more under Settings, About, Diagnostics: that text is what a report of a missing level needs. Everything added in 0.3.0 and 0.4.0 was written without a compiler and without a phone at hand. Expect rough edges; what is known to be open is in [TODO.md](TODO.md).
 
+## Download latest build
+AFTV Downloader download code: 4681560
+AFTV Downloader download link: http://aftv.news/4681560
+Github download Link: https://github.com/fhnb16/btManage-android/releases/latest/download/btManage-android.apk
+
 ## What it does
 
 - **Devices.** Every paired device, grouped into connected, nearby and the rest, with its level. Earbuds that are not paired with the phone but advertise nearby are listed too.
