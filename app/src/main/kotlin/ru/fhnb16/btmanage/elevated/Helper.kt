@@ -13,7 +13,7 @@ import kotlin.system.exitProcess
  * here: there is no `Context`, no permissions of the package, only the rights of whoever
  * started it.
  *
- * Commands: `probe`, `connect <address>`, `disconnect <address>`, `metadata`. The answer
+ * Commands: `probe`, `connect <address>`, `disconnect <address>`, `unpair <address>`, `metadata`. The answer
  * ends in one line, `ok` or `error: ...`, and the exit code says the same.
  *
  * Written without a run on a device.
@@ -43,6 +43,11 @@ object Helper {
             return if (failure == null) 0 else 1
         }
         if (command == "metadata") return metadata(adapter())
+        if (command == "unpair" && args.size >= 2) {
+            val failure = removeBond(adapter(), args[1])
+            println(if (failure == null) "ok" else "error: $failure")
+            return if (failure == null) 0 else 1
+        }
         println("error: unknown command")
         return 2
     }
@@ -129,6 +134,19 @@ internal fun requestLink(adapter: BluetoothAdapter, address: String, connect: Bo
     }
 
     return failures.joinToString("; ")
+}
+
+/**
+ * Asks Android to forget the pairing with a device. Null when Android took the request,
+ * otherwise why it did not. From Android 13 only privileged callers get through.
+ */
+@SuppressLint("MissingPermission")
+internal fun removeBond(adapter: BluetoothAdapter, address: String): String? = try {
+    val device = adapter.getRemoteDevice(address)
+    val result = BluetoothDevice::class.java.getMethod("removeBond").invoke(device)
+    if (result == true) null else "removeBond: $result"
+} catch (error: Throwable) {
+    describe(error)
 }
 
 /** The cause of a failed reflective call, in one line. */

@@ -195,12 +195,14 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
                             modifier = Modifier.fillMaxSize(),
                             verticalAlignment = Alignment.Top,
                         ) { page ->
+                            // Hidden devices, and earbuds of strangers unless asked for, stay out.
+                            val shown = devices.filter(settings::shows)
                             if (page == 0) {
-                                DevicesScreen(devices, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
+                                DevicesScreen(shown, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
                                     select(it)
                                 }
                             } else {
-                                SettingsScreen(devices, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
+                                SettingsScreen(shown, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
                             }
                         }
                     }

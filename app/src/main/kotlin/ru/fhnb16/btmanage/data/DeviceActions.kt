@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import ru.fhnb16.btmanage.elevated.removeBond
 import ru.fhnb16.btmanage.elevated.requestLink
 import ru.fhnb16.btmanage.service.Links
 import ru.fhnb16.btmanage.service.parseCodecs
@@ -42,6 +43,7 @@ object DeviceActions {
         val verb = if (connect) "connect" else "disconnect"
         val outcome = attempt(context.applicationContext, address, connect, verb)
         Diagnostics.lastAction = "$verb: ${outcome.second}"
+        EventLog.note("action", "$verb $address: ${outcome.second}")
         outcome.first
     }
 
@@ -76,6 +78,41 @@ object DeviceActions {
         } else {
             LinkOutcome.FAILED to "$way: ${output.text.takeLast(300)}"
         }
+    }
+
+    /**
+     * Asks Android to forget the pairing with a device: as an ordinary application first
+     * (refused from Android 13), then through Shizuku or root as for connecting. The levels
+     * and history the application kept go with it once Android has taken the request.
+     */
+    suspend fun unpair(context: Context, address: String): LinkOutcome = withContext(Dispatchers.IO) {
+        val app = context.applicationContext
+        val adapter = app.getSystemService(BluetoothManager::class.java)?.adapter
+            ?: return@withContext LinkOutcome.FAILED
+        val refusal = removeBond(adapter, address)
+        val outcome = if (refusal == null) {
+            LinkOutcome.ASKED to "asked as an application"
+        } else {
+            val way = when {
+                Elevated.shizukuRunning() && Elevated.askShizuku() -> Elevated.Way.SHIZUKU
+                Settings.current.useRoot -> Elevated.Way.ROOT
+                else -> null
+            }
+            if (way == null) {
+                LinkOutcome.NO_ACCESS to "refused ($refusal), no Shizuku or root"
+            } else {
+                val output = Elevated.run(way, Elevated.helper(app, "unpair", address))
+                when {
+                    output == null -> LinkOutcome.FAILED to "$way could not start the helper"
+                    output.exit == 0 -> LinkOutcome.ASKED to "asked through $way"
+                    else -> LinkOutcome.FAILED to "$way: ${output.text.takeLast(300)}"
+                }
+            }
+        }
+        Diagnostics.lastAction = "unpair: ${outcome.second}"
+        EventLog.note("action", "unpair $address: ${outcome.second}")
+        if (outcome.first == LinkOutcome.ASKED) Devices.forget(address)
+        outcome.first
     }
 
     /**

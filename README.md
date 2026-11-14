@@ -9,6 +9,11 @@ Android 8.0 (API 26) or later, on phones, tablets and Android TV. On a TV the ap
 ## What it does
 
 - **Devices.** Every paired device, grouped into connected, nearby and the rest, with its level. Earbuds that are not paired with the phone but advertise nearby are listed too.
+- **Strangers' earbuds stay out.** Earbuds broadcast their levels to anyone, and an advertisement does not say whose earbuds sent it. Only paired devices are listed unless "Show earbuds of others nearby" is on; a device can also be hidden from its page.
+- **Removing a device** from Android's pairings, from its page. Android allows that only to system apps from Android 13 on, so it goes through Shizuku or root there.
+- **Sending a file** over Bluetooth, through Android's own Bluetooth sharing.
+- **Detailed log** (Settings, About): everything the application hears and does, in a file that goes out through the share menu with the diagnostics.
+- **Developer mode**: a console for raw commands to a device over GATT, RFCOMM (serial ports, AT commands), the hands-free link and the AirPods protocol, with templates, and a list of the GATT services and characteristics of a device.
 - **Adding a device.** "Add a device" under the list searches for devices nearby that are ready to pair and asks Android to pair with the one you tap. Android shows its own dialog for the code or the confirmation.
 - **Noise control** for AirPods that have it: off, noise cancellation, transparency, adaptive, and conversation awareness, on the device page. It goes over Apple's own accessory protocol (AAP), which also brings levels in steps of 1 %. Android has no public way to open that channel, and on most phones a fault in Android's Bluetooth stack keeps it from working; it is fixed on Pixel phones from Android 16 QPR3 and on recent OnePlus, OPPO and realme phones. Where it fails, the page says so and what would help. Shizuku does not.
 - **Device page.** Connect or disconnect, batteries, an estimate of the time left, a chart of the last 24 hours, type, maker, model, address, profiles, the audio codec in use, firmware, signal.

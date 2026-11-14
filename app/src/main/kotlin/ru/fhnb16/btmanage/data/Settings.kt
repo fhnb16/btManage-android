@@ -49,8 +49,22 @@ data class SettingsData(
     val useRoot: Boolean = false,
     /** Devices the user wants no notifications about. */
     val muted: Set<String> = emptySet(),
+    /**
+     * List earbuds that are not paired with this phone but broadcast their levels nearby.
+     * Off by default: anybody's earbuds broadcast, and nothing tells whose they are.
+     */
+    val showUnpaired: Boolean = false,
+    /** Devices the user took off the list. */
+    val hidden: Set<String> = emptySet(),
+    /** Write a detailed log of what the application sees and does to a file. */
+    val verboseLog: Boolean = false,
+    /** Show the tools for looking into devices: the console, raw commands. */
+    val developer: Boolean = false,
     val widget: WidgetConfig = WidgetConfig(),
-)
+) {
+    /** Whether a device belongs in the lists, the widget and the notifications. */
+    fun shows(device: Device): Boolean = device.id !in hidden && (device.paired || showUnpaired)
+}
 
 /** User preferences, kept in SharedPreferences and observable as a flow. */
 object Settings {
@@ -82,6 +96,10 @@ object Settings {
             installAsked = prefs.getBoolean("installAsked", defaults.installAsked),
             useRoot = prefs.getBoolean("useRoot", defaults.useRoot),
             muted = prefs.getStringSet("muted", emptySet())!!.toSet(),
+            showUnpaired = prefs.getBoolean("showUnpaired", defaults.showUnpaired),
+            hidden = prefs.getStringSet("hidden", emptySet())!!.toSet(),
+            verboseLog = prefs.getBoolean("verboseLog", defaults.verboseLog),
+            developer = prefs.getBoolean("developer", defaults.developer),
             widget = WidgetConfig(
                 count = prefs.getInt("widget.count", widget.count),
                 layout = prefs.getString("widget.layout", widget.layout)!!,
@@ -111,6 +129,10 @@ object Settings {
             putBoolean("installAsked", next.installAsked)
             putBoolean("useRoot", next.useRoot)
             putStringSet("muted", next.muted)
+            putBoolean("showUnpaired", next.showUnpaired)
+            putStringSet("hidden", next.hidden)
+            putBoolean("verboseLog", next.verboseLog)
+            putBoolean("developer", next.developer)
             putInt("widget.count", next.widget.count)
             putString("widget.layout", next.widget.layout)
             putString("widget.style", next.widget.style)

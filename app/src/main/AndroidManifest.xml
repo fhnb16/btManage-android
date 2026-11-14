@@ -88,6 +88,17 @@
             android:name=".data.InstallReceiver"
             android:exported="false" />
 
+        <!-- Hands the log and other files to the application the user shares them with. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Shizuku hands its service to the application through this provider. -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

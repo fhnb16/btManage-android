@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the application hands to others through the share menu: files it puts together in
+     its cache for that, the log among them. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

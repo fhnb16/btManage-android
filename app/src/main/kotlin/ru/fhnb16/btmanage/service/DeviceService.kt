@@ -45,6 +45,7 @@ import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.DeviceFacts
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Diagnostics
+import ru.fhnb16.btmanage.data.EventLog
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.ui.DeviceText
@@ -205,6 +206,7 @@ class DeviceService : Service() {
         override fun onScanFailed(errorCode: Int) {
             scanning = false
             Diagnostics.scan = "failed, code $errorCode"
+            EventLog.note("scan", "failed, code $errorCode")
         }
     }
 
@@ -232,13 +234,27 @@ class DeviceService : Service() {
             Diagnostics.appleAdverts.incrementAndGet()
             Diagnostics.lastProximity = proximity.take(10).joinToString(" ") { "%02X".format(it) } +
                 ", ${proximity.size} bytes, ${result.rssi} dBm"
+            logAdvert("apple", result, proximity)
             Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, proximity)
         }
         val fastPair = record.serviceData?.get(FAST_PAIR)
         if (fastPair != null) {
             Diagnostics.fastPairAdverts.incrementAndGet()
+            logAdvert("fast pair", result, fastPair)
             Devices.advertisement(address, result.rssi, Devices.ADV_SERVICE_DATA, FAST_PAIR_UUID, fastPair)
         }
+    }
+
+    /** When each sender was last written to the detailed log, so that it is not flooded. */
+    private val advertLogged = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun logAdvert(kind: String, result: ScanResult, data: ByteArray) {
+        if (!EventLog.enabled) return
+        val now = System.currentTimeMillis()
+        val key = kind + result.device.address
+        if (now - (advertLogged[key] ?: 0L) < ADVERT_LOG_EVERY_MS) return
+        advertLogged[key] = now
+        EventLog.note("scan", "$kind ${result.device.address} ${result.rssi} dBm: ${EventLog.hex(data)}")
     }
 
     /**
@@ -282,6 +298,7 @@ class DeviceService : Service() {
             scanning = true
             Diagnostics.scanStarts.incrementAndGet()
             Diagnostics.scan = if (open) "running, unfiltered, low latency" else "running, filtered, low power"
+            EventLog.note("scan", "started: ${Diagnostics.scan}")
         } catch (error: Throwable) {
             scanning = false
             Diagnostics.scan = "could not start: ${error.javaClass.simpleName}"
@@ -366,15 +383,18 @@ class DeviceService : Service() {
             // AirPods and Beats keep a channel of their own for levels and settings.
             if (isConnected && accessory) Aap.keep(this, address)
 
-            // Bluetooth LE devices Android has no level for are asked directly.
-            val overLe = device.type == BluetoothDevice.DEVICE_TYPE_LE ||
-                (device.type == BluetoothDevice.DEVICE_TYPE_DUAL && BATTERY_SERVICE_UUID in services)
-            if (isConnected && battery == null && overLe) unread.add(device)
+            // Devices with Bluetooth LE that Android has no level for are asked directly. The
+            // services a dual-mode device lists come from Bluetooth Classic and often leave
+            // its GATT services out, so it is asked whether or not it lists the Battery Service.
+            val overLe = device.type == BluetoothDevice.DEVICE_TYPE_LE || device.type == BluetoothDevice.DEVICE_TYPE_DUAL
+            if (isConnected && battery == null && overLe && !accessory) unread.add(device)
         }
 
         Diagnostics.paired = bonded.size
         Diagnostics.connected = connectedCount
-        Diagnostics.pairedDevices = described.joinToString("\n")
+        val summary = described.joinToString("\n")
+        if (summary != Diagnostics.pairedDevices) EventLog.note("paired", "\n$summary")
+        Diagnostics.pairedDevices = summary
         anyConnected = connectedCount > 0
         Devices.setSystemDevices(devices.toString())
         if (unread.isNotEmpty()) gatt.poll(unread)
@@ -414,6 +434,14 @@ class DeviceService : Service() {
                 intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
             }
             val address = device?.address
+            if (EventLog.enabled) {
+                val extras = intent.extras?.keySet()?.joinToString(", ") { key ->
+                    @Suppress("DEPRECATION")
+                    val value = intent.extras?.get(key)
+                    "${key.substringAfterLast('.')}=" + if (value is Array<*>) value.joinToString(",", "[", "]") else value.toString()
+                }
+                EventLog.note("broadcast", "${intent.action?.substringAfterLast('.')} ${address ?: ""} $extras")
+            }
             when (intent.action) {
                 BluetoothDevice.ACTION_ACL_CONNECTED -> address?.let(connected::add)
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> address?.let {
@@ -524,7 +552,7 @@ class DeviceService : Service() {
         val threshold = settings.lowThreshold
 
         // The ongoing notification carries the levels of the active devices.
-        val status = devices.filter { it.isActive && it.cells.isNotEmpty() }.take(3)
+        val status = devices.filter { it.isActive && it.cells.isNotEmpty() && settings.shows(it) }.take(3)
             .joinToString("\n") { "${DeviceText.name(this, it)}: ${DeviceText.levels(this, it)}" }
             .ifEmpty { getString(R.string.status_watching) }
         if (status != statusText) {
@@ -539,7 +567,7 @@ class DeviceService : Service() {
             seen[device.id] = device.isActive to lowMask
 
             // Only the user's own devices are news, and nothing is news on the first pass.
-            if (!primed || !device.isActive || !device.paired || device.id in settings.muted) continue
+            if (!primed || !device.isActive || !settings.shows(device) || !device.paired || device.id in settings.muted) continue
             val audio = device.kind in AUDIO_KINDS
             if (!wasActive && audio && device.cells.isNotEmpty()) {
                 if (settings.notifyArrival) alert(device, DeviceText.levels(this, device))
@@ -626,6 +654,7 @@ class DeviceService : Service() {
         private const val SYSTEM_EVERY = 6
         private const val SAVE_EVERY = 60
         private const val FACTS_EVERY = 12
+        private const val ADVERT_LOG_EVERY_MS = 2_000L
         private const val STATUS_ID = 1
         private const val NOTICE_ID = 3
         private const val UPDATE_EVERY_MS = 24 * 60 * 60 * 1000L

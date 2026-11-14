@@ -1,7 +1,10 @@
 package ru.fhnb16.btmanage.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +38,7 @@ import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.DeviceActions
 import ru.fhnb16.btmanage.data.DeviceFacts
 import ru.fhnb16.btmanage.data.Devices
+import ru.fhnb16.btmanage.data.EventLog
 import ru.fhnb16.btmanage.data.LinkOutcome
 import ru.fhnb16.btmanage.data.NoiseMode
 import ru.fhnb16.btmanage.service.Aap
@@ -63,6 +67,11 @@ fun DevicesScreen(
     // Lists in the historical designs run to the edge of the list; the others keep a margin.
     val margin = if (design.isHistorical) 0.dp else 16.dp
     val inset = PaddingValues(horizontal = if (design == DesignStyle.HOLO) 8.dp else 0.dp)
+    val context = LocalContext.current
+    // A file the user picks goes to Android's own Bluetooth sharing, which asks for the device.
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) sendOverBluetooth(context, uri)
+    }
 
     LazyColumn(modifier, contentPadding = inset) {
         if (update.release != null) {
@@ -90,13 +99,34 @@ fun DevicesScreen(
                 DeviceRow(device, settings) { open(device.id) }
             }
         }
-        // Pairing with a device that is not in the list yet.
+        // Pairing with a device that is not in the list yet, and sending a file to one.
         item(key = "add-device") {
-            Box(Modifier.padding(horizontal = if (design.isHistorical) 8.dp else 16.dp, vertical = 12.dp)) {
+            Row(
+                Modifier.padding(horizontal = if (design.isHistorical) 8.dp else 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 AppButton(stringResource(R.string.action_add_device), primary = false, onClick = onAdd)
+                AppButton(stringResource(R.string.action_send_file), primary = false) { pickFile.launch(arrayOf("*/*")) }
             }
         }
     }
+}
+
+/**
+ * Hands a file to Android's Bluetooth sharing (the Object Push profile), which asks which
+ * device to send it to and shows the transfer in a notification. Where a phone has no such
+ * sharing under the usual name, the share menu offers whatever can take the file.
+ */
+private fun sendOverBluetooth(context: Context, uri: Uri) {
+    val type = context.contentResolver.getType(uri) ?: "application/octet-stream"
+    val send = Intent(Intent.ACTION_SEND)
+        .setType(type)
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    EventLog.note("share", "send over Bluetooth: $type")
+    val direct = Intent(send).setPackage("com.android.bluetooth")
+    val started = runCatching { context.startActivity(direct) }.isSuccess
+    if (!started) runCatching { context.startActivity(Intent.createChooser(send, null)) }
 }
 
 /** A device in the list: a list item in Material, a card in Fluent, a row over a divider in the historical designs. */
@@ -300,8 +330,45 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             Box(Modifier.entry()) {
                 AppButton(stringResource(R.string.forget_history), primary = false) { Devices.forget(device.id) }
             }
+            RemoveActions(device, address)
         }
     }
+}
+
+/**
+ * Taking a device off: hiding it from the lists, which the application can always do, and
+ * for a paired device, removing the pairing from Android. The second asks for a second
+ * press, since a removed headset must be paired again from scratch.
+ */
+@Composable
+private fun RemoveActions(device: Device, address: String?) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var confirm by remember(device.id) { mutableStateOf(false) }
+    var outcome by remember(device.id) { mutableStateOf<LinkOutcome?>(null) }
+
+    Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AppButton(stringResource(R.string.action_hide), primary = false) {
+            Settings.update(context) { it.copy(hidden = it.hidden + device.id) }
+        }
+        if (device.paired && address != null) {
+            AppButton(stringResource(if (confirm) R.string.action_unpair_confirm else R.string.action_unpair), primary = confirm) {
+                if (!confirm) {
+                    confirm = true
+                } else {
+                    confirm = false
+                    scope.launch { outcome = DeviceActions.unpair(context, address) }
+                }
+            }
+        }
+    }
+    val message = when (outcome) {
+        LinkOutcome.ASKED -> R.string.unpair_asked
+        LinkOutcome.NO_ACCESS -> R.string.unpair_no_access
+        LinkOutcome.FAILED -> R.string.link_failed
+        null -> null
+    }
+    if (message != null) Note(stringResource(message), Modifier.entry())
 }
 
 /**

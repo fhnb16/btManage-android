@@ -38,6 +38,7 @@ import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Diagnostics
 import ru.fhnb16.btmanage.data.Elevated
+import ru.fhnb16.btmanage.data.EventLog
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.UpdateState
@@ -80,7 +81,7 @@ fun SettingsScreen(
                     0 -> GeneralPage(settings)
                     1 -> AppearancePage(settings)
                     2 -> WidgetPage(devices, settings)
-                    else -> AboutPage(settings, update, onInstall, askInstallAccess)
+                    else -> AboutPage(devices, settings, update, onInstall, askInstallAccess)
                 }
             }
         }
@@ -109,6 +110,26 @@ private fun GeneralPage(settings: SettingsData) {
     Section(stringResource(R.string.settings_background)) {
         SettingToggle(stringResource(R.string.setting_start_on_boot), settings.startOnBoot) { on ->
             change { it.copy(startOnBoot = on) }
+        }
+    }
+
+    Section(stringResource(R.string.settings_list)) {
+        SettingToggle(stringResource(R.string.setting_show_unpaired), settings.showUnpaired) { on ->
+            change { it.copy(showUnpaired = on) }
+        }
+        Note(stringResource(R.string.setting_show_unpaired_note), Modifier.entry())
+        if (settings.hidden.isNotEmpty()) {
+            Row(Modifier.entry(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.hidden_count, settings.hidden.size),
+                    Modifier
+                        .weight(1f)
+                        .padding(end = 16.dp),
+                )
+                AppButton(stringResource(R.string.action_show_hidden), primary = false) {
+                    change { it.copy(hidden = emptySet()) }
+                }
+            }
         }
     }
 
@@ -273,6 +294,7 @@ private fun WidgetPage(devices: List<Device>, settings: SettingsData) {
 
 @Composable
 private fun AboutPage(
+    devices: List<Device>,
     settings: SettingsData,
     update: UpdateState,
     onInstall: () -> Unit,
@@ -327,6 +349,51 @@ private fun AboutPage(
     }
 
     DiagnosticsSection()
+    DeveloperSection(devices, settings)
+}
+
+/**
+ * The detailed log, kept in a file and handed out through Android's share menu, and the
+ * developer mode with its console.
+ */
+@Composable
+private fun DeveloperSection(devices: List<Device>, settings: SettingsData) {
+    val context = LocalContext.current
+    var console by rememberSaveable { mutableStateOf(false) }
+    var size by remember { mutableStateOf(EventLog.size()) }
+    LaunchedEffect(settings.verboseLog) {
+        while (true) {
+            size = EventLog.size()
+            delay(3_000)
+        }
+    }
+
+    Section(stringResource(R.string.settings_developer)) {
+        SettingToggle(stringResource(R.string.setting_verbose_log), settings.verboseLog) { on ->
+            Settings.update(context) { it.copy(verboseLog = on) }
+        }
+        Note(stringResource(R.string.setting_verbose_log_note, (size + 1023) / 1024), Modifier.entry())
+        Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppButton(stringResource(R.string.log_share)) {
+                EventLog.shareIntent(context)?.let { runCatching { context.startActivity(it) } }
+            }
+            AppButton(stringResource(R.string.log_clear), primary = false) {
+                EventLog.clear()
+                size = 0
+            }
+        }
+        SettingToggle(stringResource(R.string.setting_developer), settings.developer) { on ->
+            Settings.update(context) { it.copy(developer = on) }
+        }
+        if (settings.developer) {
+            Note(stringResource(R.string.setting_developer_note), Modifier.entry())
+            Box(Modifier.entry()) {
+                AppButton(stringResource(R.string.console_open)) { console = true }
+            }
+        }
+    }
+
+    if (console) ConsoleDialog(devices.filter { it.paired }) { console = false }
 }
 
 /**

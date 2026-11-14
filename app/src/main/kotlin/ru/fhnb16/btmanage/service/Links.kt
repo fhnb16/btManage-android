@@ -68,6 +68,9 @@ object Links {
         }
     }
 
+    /** The service Android handed over for a profile (`BluetoothProfile.HEADSET` and so on), if it did. */
+    fun proxy(profile: Int): BluetoothProfile? = proxies[profile]
+
     /** Addresses of the devices connected on any profile, or over GATT. */
     @SuppressLint("MissingPermission")
     fun connectedAddresses(): Set<String> {

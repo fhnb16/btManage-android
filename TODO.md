@@ -19,6 +19,24 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## 0.6.0: tools
+
+Written without a compiler and without a phone at hand. To try:
+
+- Strangers' earbuds stay out of the list, and switch on under Settings, General, Device list. With the core 0.3.4, the user's own AirPods take levels from advertisements only while connected to the phone.
+- Hide a device, show the hidden ones again.
+- Remove a device: refused as an ordinary app from Android 13, done through Shizuku or root (`unpair` in `elevated/Helper.kt`).
+- The detailed log: switched on, a few minutes with the AirPods, shared to a messenger. The file holds the diagnostics text, then the log lines.
+- The console: GATT on a Bluetooth LE device (connect, the list of characteristics, read the battery, subscribe), RFCOMM on a serial module (SPP and AT), the +ANDROID code to a headset, raw AAP to AirPods.
+- Send a file: Android's Bluetooth sharing opens with the file; the receiving phone gets it as from any other phone.
+- The Battery Service read on dual-mode devices that do not list it.
+
+Not done yet, and why:
+
+- Sharing between two btManage, over Bluetooth and over the local network, on all three systems: one protocol for all of them, planned in the core's TODO. Receiving files over Bluetooth Object Push stays with Android, which does it already.
+- Batteries behind makers' own commands over a serial line (Lovense's `Battery;` and the like): the console sends them by hand; reading them on their own needs the protocol of each maker in the core.
+- AT commands to a headset beyond `+ANDROID`: Android sends no other result code from an application. With root, the hands-free channel itself could be opened; not attempted.
+
 ## Android TV (0.5.0)
 
 Written without a TV at hand. To try on one:

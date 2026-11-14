@@ -55,7 +55,7 @@ class BatteryWidget : GlanceAppWidget() {
             val config = settings.widget
             GlanceTheme {
                 val look = palette(config, settings.design)
-                Content(context, pick(devices, config), config, settings.lowThreshold, look)
+                Content(context, pick(devices.filter(settings::shows), config), config, settings.lowThreshold, look)
             }
         }
     }

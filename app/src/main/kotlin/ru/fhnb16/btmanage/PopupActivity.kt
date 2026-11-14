@@ -382,7 +382,9 @@ private fun Popup(settings: SettingsData, onClose: () -> Unit, openApp: (String?
             if (pairing) {
                 PairingPanel(Modifier.weight(1f))
             } else {
-                Connected(devices.filter { it.connected }, settings, ready, side, Modifier.weight(1f)) { openApp(it) }
+                Connected(devices.filter { it.connected && settings.shows(it) }, settings, ready, side, Modifier.weight(1f)) {
+                    openApp(it)
+                }
             }
             Row(
                 Modifier.padding(horizontal = side, vertical = 12.dp),

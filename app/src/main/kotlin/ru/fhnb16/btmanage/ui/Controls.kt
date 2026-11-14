@@ -2,6 +2,7 @@ package ru.fhnb16.btmanage.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,6 +71,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -759,6 +761,46 @@ fun <T> SettingChoice(label: String?, options: List<Pair<T, String>>, selected: 
             if (label != null) Text(label, Modifier.weight(1f).padding(end = 16.dp))
             Spinner(options, selected, onSelect, if (label != null) Modifier.width(176.dp) else Modifier.weight(1f))
         }
+    }
+}
+
+/**
+ * A line of text the user types: a bordered field in the shape of the design, with its
+ * label above it. [monospace] for commands and bytes.
+ */
+@Composable
+fun AppTextField(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    monospace: Boolean = false,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val design = LocalDesign.current
+    val shape = when (design) {
+        DesignStyle.MATERIAL -> RoundedCornerShape(8.dp)
+        DesignStyle.FLUENT -> RoundedCornerShape(4.dp)
+        else -> RoundedCornerShape(2.dp)
+    }
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                color = scheme.onSurface,
+                fontFamily = if (monospace) FontFamily.Monospace else null,
+            ),
+            cursorBrush = SolidColor(scheme.primary),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focused = it.isFocused }
+                .border(if (focused) 2.dp else 1.dp, if (focused) scheme.primary else scheme.outline, shape)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
     }
 }
 

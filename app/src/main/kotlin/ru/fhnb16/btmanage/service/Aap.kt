@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Diagnostics
+import ru.fhnb16.btmanage.data.EventLog
 import ru.fhnb16.btmanage.data.NoiseMode
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -82,8 +83,15 @@ object Aap {
     suspend fun setAwareness(context: Context, address: String, on: Boolean): String? =
         send(context, address, Native.aapPacket(COMMAND_AWARENESS, if (on) 1 else 0))
 
+    /** Sends bytes as they are, for the developer console. Null when they went out, else why not. */
+    suspend fun sendRaw(context: Context, address: String, packet: ByteArray): String? = sendBytes(context, address, packet)
+
     private suspend fun send(context: Context, address: String, hex: String?): String? {
         val packet = hex?.let(::bytes) ?: return "the core has no such packet"
+        return sendBytes(context, address, packet)
+    }
+
+    private suspend fun sendBytes(context: Context, address: String, packet: ByteArray): String? {
         // The user asked for this: a channel that failed before is tried again at once.
         if (!sockets.containsKey(address)) {
             failures.remove(address)
@@ -140,6 +148,7 @@ object Aap {
                 describe(error)
             }
         }
+        EventLog.note("aap", "$address open: ${failure ?: "ok"}")
         if (failure == null) {
             failures.remove(address)
             set(address, Link(State.READY))
@@ -202,6 +211,7 @@ object Aap {
                     val packet = buffer.copyOf(length)
                     Diagnostics.aapPackets = packets
                     Diagnostics.notePacket(packet)
+                    EventLog.note("aap", "$address <- ${EventLog.hex(packet)}")
                     Devices.aap(address, packet)
                 }
             } catch (_: IOException) {

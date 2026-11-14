@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import ru.fhnb16.btmanage.data.EventLog
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -65,11 +66,13 @@ class GattBattery(private val context: Context, private val onLevel: (address: S
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             val connected = status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED
+            EventLog.note("gatt", "${gatt.device.address}: state $newState, status $status")
             if (!connected || !gatt.discoverServices()) close(gatt)
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             val level = gatt.getService(BATTERY_SERVICE)?.getCharacteristic(BATTERY_LEVEL)
+            EventLog.note("gatt", "${gatt.device.address}: ${gatt.services.size} services, battery ${if (level != null) "found" else "absent"}")
             if (status != BluetoothGatt.GATT_SUCCESS || level == null || !gatt.readCharacteristic(level)) close(gatt)
         }
 
@@ -80,6 +83,7 @@ class GattBattery(private val context: Context, private val onLevel: (address: S
             val value = characteristic.value
             if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL && value != null && value.isNotEmpty()) {
                 val percent = value[0].toInt() and 0xFF
+                EventLog.note("gatt", "${gatt.device.address}: battery $percent %")
                 if (percent <= 100) onLevel(gatt.device.address, percent)
             }
             close(gatt)
