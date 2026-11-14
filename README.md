@@ -8,8 +8,11 @@ Android 8.0 (API 26) or later, on phones, tablets and Android TV. On a TV the ap
 
 ## Download latest build
 AFTV Downloader download code: 4681560
+
 AFTV Downloader download link: http://aftv.news/4681560
+
 Github download Link: https://github.com/fhnb16/btManage-android/releases/latest/download/btManage-android.apk
+
 
 ## What it does
 
