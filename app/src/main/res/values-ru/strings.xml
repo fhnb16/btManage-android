@@ -235,6 +235,14 @@
     <string name="share_failed">Не отправлено, %1$s: %2$s</string>
     <string name="share_open">Открыть</string>
     <string name="share_pass_on">Переслать</string>
+    <string name="web_title">Браузер</string>
+    <string name="web_toggle">Доступ из браузера в этой сети</string>
+    <string name="web_off_note">iPhone, Mac или любой компьютер без btManage открывает страницу в браузере, забирает файлы, которые вы предложите, и присылает сюда файлы и текст</string>
+    <string name="web_open">Откройте на другом устройстве</string>
+    <string name="web_note">Обычный HTTP: пока доступ включён, страницей может пользоваться любой в этой сети, у кого есть адрес</string>
+    <string name="web_no_network">Нет сети. Подключитесь к Wi-Fi</string>
+    <string name="web_offer">Предложить файлы</string>
+    <string name="web_withdraw">Убрать</string>
     <string name="action_hide">Скрыть из списка</string>
     <string name="action_unpair">Удалить устройство</string>
     <string name="action_unpair_confirm">Нажмите ещё раз, чтобы удалить</string>

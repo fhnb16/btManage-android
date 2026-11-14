@@ -41,6 +41,7 @@ import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.ShareHub
 import ru.fhnb16.btmanage.data.ShareItem
+import ru.fhnb16.btmanage.data.WebShare
 import java.io.File
 import java.text.DateFormat
 import java.util.Date
@@ -72,13 +73,21 @@ fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
     var pairingWith by remember { mutableStateOf<Target?>(null) }
     var fileTo by remember { mutableStateOf<Target?>(null) }
 
+    val webRunning by WebShare.running.collectAsState()
+    val webAddresses by WebShare.addresses.collectAsState()
+    val offered by WebShare.offered.collectAsState()
+
     LaunchedEffect(Unit) {
         ShareHub.start(context)
         // The addresses change with the network; look again now and then.
         while (true) {
             addresses = ShareHub.addresses()
+            WebShare.refreshAddresses()
             delay(5_000)
         }
+    }
+    val pickOffered = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) WebShare.offer(context, uris)
     }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val target = fileTo
@@ -148,6 +157,52 @@ fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
                     AppButton(stringResource(R.string.share_pair), primary = false, enabled = typed.isNotBlank()) { pairingWith = target }
                     AppButton(stringResource(R.string.share_kind_text), primary = false, enabled = typed.isNotBlank()) { writingTo = target }
                     AppButton(stringResource(R.string.share_kind_file), primary = false, enabled = typed.isNotBlank()) { sendFile(target) }
+                }
+            }
+        }
+
+        // Devices without btManage: a page in their browser.
+        Section(stringResource(R.string.web_title)) {
+            SettingToggle(stringResource(R.string.web_toggle), webRunning) { on ->
+                if (on) WebShare.start(context) else WebShare.stop()
+            }
+            if (!webRunning) {
+                Note(stringResource(R.string.web_off_note), Modifier.entry())
+            } else {
+                Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (webAddresses.isEmpty()) {
+                        Note(stringResource(R.string.web_no_network))
+                    } else {
+                        Text(
+                            stringResource(R.string.web_open),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        for (address in webAddresses) {
+                            Text(address, style = MaterialTheme.typography.titleMedium.tabular())
+                        }
+                    }
+                    Note(stringResource(R.string.web_note))
+                }
+                Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppButton(stringResource(R.string.web_offer)) { pickOffered.launch(arrayOf("*/*")) }
+                    webAddresses.firstOrNull()?.let { address ->
+                        AppButton(stringResource(R.string.diagnostics_copy), primary = false) {
+                            runCatching {
+                                context.getSystemService(ClipboardManager::class.java)
+                                    ?.setPrimaryClip(ClipData.newPlainText("btManage", address))
+                            }
+                        }
+                    }
+                }
+                for (file in offered) {
+                    Row(Modifier.entry(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(file.name, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                            if (file.size >= 0) Note(android.text.format.Formatter.formatShortFileSize(context, file.size))
+                        }
+                        AppButton(stringResource(R.string.web_withdraw), primary = false) { WebShare.withdraw(file.id) }
+                    }
                 }
             }
         }

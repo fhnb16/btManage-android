@@ -19,6 +19,10 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## 0.9.0: a page for browsers
+
+Written without a compiler. Share, Browser: switched on, the screen shows `http://<phone>:8080/<key>`. To try from an iPhone and a Mac on the same Wi-Fi: the page opens in Safari in light and dark; files offered on the phone download with their names (Cyrillic ones included); several files picked at once upload one after another with their progress, and land in the history of the Share screen, where Open and Pass on work; text arrives and copies; an address without the key gets "Not found". A file of a few gigabytes both ways. The server stops with the process; whether Android keeps it alive with the screen off, while the device service runs, is not known.
+
 ## 0.8.0: pairing for sharing, device tools, tidier screens
 
 Written without a compiler. To try:

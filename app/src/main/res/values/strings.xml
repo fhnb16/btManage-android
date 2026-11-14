@@ -244,6 +244,14 @@
     <string name="share_failed">Not sent, %1$s: %2$s</string>
     <string name="share_open">Open</string>
     <string name="share_pass_on">Pass on</string>
+    <string name="web_title">Browser</string>
+    <string name="web_toggle">Open to browsers on this network</string>
+    <string name="web_off_note">An iPhone, a Mac or any computer without btManage opens a page in its browser, takes the files you offer and sends files and text here</string>
+    <string name="web_open">Open on the other device</string>
+    <string name="web_note">Plain HTTP: while this is on, anyone on this network with the address can use the page</string>
+    <string name="web_no_network">No network. Connect to Wi-Fi</string>
+    <string name="web_offer">Offer files</string>
+    <string name="web_withdraw">Remove</string>
     <string name="action_hide">Hide from the list</string>
     <string name="action_unpair">Remove device</string>
     <string name="action_unpair_confirm">Press again to remove</string>

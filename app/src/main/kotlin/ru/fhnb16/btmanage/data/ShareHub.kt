@@ -208,6 +208,9 @@ object ShareHub {
         prefs?.edit()?.putStringSet(TRUSTED, ids)?.apply()
     }
 
+    /** Puts an item that came another way, such as from a browser (`WebShare`), into the history. */
+    fun record(item: ShareItem) = add(item)
+
     private fun add(item: ShareItem) {
         EventLog.note("share", "${item.type} ${item.kind} ${item.name} ${item.other} ${item.error.orEmpty()}")
         itemsFlow.value = (listOf(item) + itemsFlow.value).take(MAX_ITEMS)
