@@ -19,6 +19,12 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## 0.7.0: sharing
+
+Written without a compiler. To try: two phones, or a phone and a computer, on one Wi-Fi network; each finds the other within a few seconds; text and a file of a few hundred megabytes go both ways; with taking off, the sender is told no; with the application closed and taking on, an item still comes in and a notification says so; a typed address works where the devices do not find each other. On a network that keeps devices apart nothing goes through, and the screen says so.
+
+The retry of an update that failed, in the banner and under Settings, About.
+
 ## 0.6.0: tools
 
 Written without a compiler and without a phone at hand. To try:

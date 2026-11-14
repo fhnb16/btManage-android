@@ -24,6 +24,9 @@
          whether the connection is metered, where nothing is downloaded unasked. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Hearing the announcements of other btManage applications on the local network:
+         Android drops Wi-Fi broadcasts unless an application asks for them. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- Installing the downloaded update. The user still has to allow this application as a
          source of installations, in Android's settings. The second permission lets later

@@ -73,6 +73,28 @@ object Native {
      */
     external fun aapPacket(kind: Int, value: Int): String?
 
+    // Sharing with other btManage applications on the local network.
+
+    /** Zero when it could not start. [platform] is "android". */
+    external fun shareStart(id: String, name: String, platform: String, inbox: String, discovery: Boolean): Long
+
+    external fun shareFree(handle: Long)
+
+    external fun sharePort(handle: Long): Int
+
+    external fun shareSetReceiving(handle: Long, on: Boolean)
+
+    /** JSON array of `{"id", "name", "platform", "address"}`. */
+    external fun sharePeers(handle: Long): String?
+
+    /** JSON array of the events since the last call. */
+    external fun shareEvents(handle: Long): String?
+
+    /** [to] is "ip:port"; the outcome comes as an event. */
+    external fun shareSendText(handle: Long, to: String, text: String): Boolean
+
+    external fun shareSendFile(handle: Long, to: String, path: String): Boolean
+
     external fun hubSnapshot(handle: Long, nowMs: Long): String?
 
     external fun hubHistory(handle: Long, deviceId: String, sinceMs: Long): String?

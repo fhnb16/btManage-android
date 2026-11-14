@@ -65,6 +65,7 @@ An APK built this way has no core library and shows "The core library is missing
 | `…/data/Diagnostics.kt` | What the service has seen, for the diagnostics page |
 | `…/data/CrashLog.kt`, `…/BtManageApp.kt` | The last crash, kept in a file from the start of the process and shown in the diagnostics |
 | `…/data/EventLog.kt` | The detailed log: lines to a file while switched on, handed out through the share menu. Note every new source of data and every action here |
+| `…/data/ShareHub.kt`, `…/ui/ShareScreen.kt` | Sharing with other btManage on the local network, over the core's `btmanage-share`; received files in `files/inbox`, handed out through the file provider |
 | `…/data/Console.kt`, `…/ui/ConsoleScreen.kt` | The developer console: GATT, RFCOMM, the hands-free result code, raw AAP; templates of commands |
 | `…/data/Discovery.kt` | The search for devices to pair with, and the pairing |
 | `…/data/DeviceFacts.kt` | Android's own record of a device (levels of single earbuds, maker, model, firmware), read with Shizuku or root |

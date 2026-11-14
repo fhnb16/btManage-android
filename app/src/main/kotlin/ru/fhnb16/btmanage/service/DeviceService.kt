@@ -47,6 +47,7 @@ import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.Diagnostics
 import ru.fhnb16.btmanage.data.EventLog
 import ru.fhnb16.btmanage.data.Settings
+import ru.fhnb16.btmanage.data.ShareHub
 import ru.fhnb16.btmanage.data.Updates
 import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.widget.BatteryWidget
@@ -132,6 +133,9 @@ class DeviceService : Service() {
             Links.open(this)
             registerReceivers()
             scope.launch { watch() }
+            // Items from other btManage applications come in while the application is closed too.
+            if (Settings.current.shareReceive) ShareHub.start(this)
+            scope.launch { announceReceived() }
         }
         return START_STICKY
     }
@@ -604,6 +608,21 @@ class DeviceService : Service() {
             .setAutoCancel(true)
             .build()
         notifications().notify(device.id.hashCode(), notification)
+    }
+
+    /** Tells the user of each file or text another btManage sent, while the application is not on screen. */
+    private suspend fun announceReceived() {
+        var latest = System.currentTimeMillis()
+        ShareHub.items.collect { items ->
+            val fresh = items.filter { it.type == "received" && it.at > latest }
+            if (fresh.isEmpty()) return@collect
+            latest = fresh.maxOf { it.at }
+            if (Updates.foreground) return@collect
+            for (item in fresh) {
+                val what = if (item.kind == "text") item.text.orEmpty().take(80) else item.name
+                notice(getString(R.string.share_received, what, item.other))
+            }
+        }
     }
 
     /** A notification that is not about a device; it opens the application. */

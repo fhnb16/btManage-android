@@ -324,7 +324,14 @@ private fun AboutPage(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 AppButton(
-                    text = stringResource(if (checking) R.string.update_checking else R.string.update_check),
+                    text = stringResource(
+                        when {
+                            checking -> R.string.update_checking
+                            // After a failed check, the same button tries again.
+                            update is UpdateState.Failed -> R.string.update_retry
+                            else -> R.string.update_check
+                        },
+                    ),
                     enabled = !checking,
                 ) {
                     scope.launch { Updates.check() }

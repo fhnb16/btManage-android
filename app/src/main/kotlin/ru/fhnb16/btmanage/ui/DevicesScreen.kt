@@ -217,7 +217,12 @@ fun UpdateBanner(update: UpdateState, onInstall: () -> Unit, modifier: Modifier 
                     .padding(vertical = 12.dp),
             )
             when {
-                // A release without an APK, or one that would not install: the page is the way out.
+                // A download or installation that failed: try again, or take the release page.
+                update is UpdateState.Failed && release.apkUrl != null -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AppButton(stringResource(R.string.update_retry), primary = false, onClick = onInstall)
+                    AppButton(stringResource(R.string.update_page), primary = false, onClick = openPage)
+                }
+                // A release without an APK: the page is the way out.
                 update is UpdateState.Failed || (update is UpdateState.Available && release.apkUrl == null) ->
                     AppButton(stringResource(R.string.update_page), primary = false, onClick = openPage)
                 update is UpdateState.Available ->

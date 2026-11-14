@@ -199,6 +199,9 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/dist"
           suffix=""; [[ "$variant" == debug ]] && suffix="-debug"
           cp app/build/outputs/apk/$variant/app-$variant.apk "$GITHUB_WORKSPACE/dist/btManage-android-$VERSION$suffix.apk"
+          # The same file under a name without the version, so that
+          # releases/latest/download/btManage-android.apk always points at the newest one.
+          cp app/build/outputs/apk/$variant/app-$variant.apk "$GITHUB_WORKSPACE/dist/btManage-android$suffix.apk"
 
       - name: Remove the signing key
         if: always()

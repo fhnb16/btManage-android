@@ -54,6 +54,7 @@ import ru.fhnb16.btmanage.ui.DeviceText
 import ru.fhnb16.btmanage.ui.DevicesScreen
 import ru.fhnb16.btmanage.ui.PairingDialog
 import ru.fhnb16.btmanage.ui.SettingsScreen
+import ru.fhnb16.btmanage.ui.ShareScreen
 
 class MainActivity : ComponentActivity() {
     /** The device a notification or a widget asked for. */
@@ -103,7 +104,7 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
     val devices by Devices.list.collectAsState()
     var granted by remember { mutableStateOf(DeviceService.hasPermissions(context)) }
     // The two tabs are pages side by side: a swipe moves between them, as a tap on a tab does.
-    val pager = rememberPagerState { 2 }
+    val pager = rememberPagerState { 3 }
     var pairing by rememberSaveable { mutableStateOf(false) }
     val update by Updates.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -162,7 +163,11 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
                         )
                         if (selected == null && granted && Devices.available) {
                             AppTabs(
-                                titles = listOf(stringResource(R.string.tab_devices), stringResource(R.string.tab_settings)),
+                                titles = listOf(
+                                    stringResource(R.string.tab_devices),
+                                    stringResource(R.string.tab_share),
+                                    stringResource(R.string.tab_settings),
+                                ),
                                 selected = pager.currentPage,
                             ) { page -> scope.launch { pager.animateScrollToPage(page) } }
                         }
@@ -197,12 +202,12 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
                         ) { page ->
                             // Hidden devices, and earbuds of strangers unless asked for, stay out.
                             val shown = devices.filter(settings::shows)
-                            if (page == 0) {
-                                DevicesScreen(shown, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
+                            when (page) {
+                                0 -> DevicesScreen(shown, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
                                     select(it)
                                 }
-                            } else {
-                                SettingsScreen(shown, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
+                                1 -> ShareScreen(settings, Modifier.fillMaxSize())
+                                else -> SettingsScreen(shown, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
                             }
                         }
                     }

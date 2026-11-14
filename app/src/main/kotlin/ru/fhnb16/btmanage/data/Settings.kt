@@ -60,6 +60,8 @@ data class SettingsData(
     val verboseLog: Boolean = false,
     /** Show the tools for looking into devices: the console, raw commands. */
     val developer: Boolean = false,
+    /** Take files and text other btManage applications on the local network send. */
+    val shareReceive: Boolean = false,
     val widget: WidgetConfig = WidgetConfig(),
 ) {
     /** Whether a device belongs in the lists, the widget and the notifications. */
@@ -100,6 +102,7 @@ object Settings {
             hidden = prefs.getStringSet("hidden", emptySet())!!.toSet(),
             verboseLog = prefs.getBoolean("verboseLog", defaults.verboseLog),
             developer = prefs.getBoolean("developer", defaults.developer),
+            shareReceive = prefs.getBoolean("shareReceive", defaults.shareReceive),
             widget = WidgetConfig(
                 count = prefs.getInt("widget.count", widget.count),
                 layout = prefs.getString("widget.layout", widget.layout)!!,
@@ -133,6 +136,7 @@ object Settings {
             putStringSet("hidden", next.hidden)
             putBoolean("verboseLog", next.verboseLog)
             putBoolean("developer", next.developer)
+            putBoolean("shareReceive", next.shareReceive)
             putInt("widget.count", next.widget.count)
             putString("widget.layout", next.widget.layout)
             putString("widget.style", next.widget.style)

@@ -3,4 +3,6 @@
      its cache for that, the log among them. -->
 <paths>
     <cache-path name="share" path="share/" />
+    <!-- Files other btManage applications sent to this one. -->
+    <files-path name="inbox" path="inbox/" />
 </paths>
