@@ -95,6 +95,20 @@ object Native {
 
     external fun shareSendFile(handle: Long, to: String, path: String): Boolean
 
+    /** The code another device types in to pair with this one, six digits. */
+    external fun shareCode(handle: Long): String?
+
+    /** JSON array of the identifiers of the paired devices, to keep. */
+    external fun shareTrusted(handle: Long): String?
+
+    /** Restores a paired device kept from an earlier run. */
+    external fun shareTrust(handle: Long, id: String)
+
+    external fun shareForget(handle: Long, id: String)
+
+    /** Asks the device at [to] to pair, with the code its user reads out. */
+    external fun sharePair(handle: Long, to: String, code: String): Boolean
+
     external fun hubSnapshot(handle: Long, nowMs: Long): String?
 
     external fun hubHistory(handle: Long, deviceId: String, sinceMs: Long): String?

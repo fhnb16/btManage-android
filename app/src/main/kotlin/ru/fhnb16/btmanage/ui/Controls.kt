@@ -1,8 +1,13 @@
 package ru.fhnb16.btmanage.ui
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -737,7 +742,11 @@ fun OptionRow(title: String, note: String?, selected: Boolean, radio: Boolean, o
  */
 @Composable
 fun <T> SettingChoice(label: String?, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
-    if (LocalDesign.current == DesignStyle.MATERIAL) {
+    // Segments hold a few short labels; more, or longer ones, would shrink to unreadable cells.
+    val segments = options.size <= MAX_SEGMENTS && options.none { it.second.length > MAX_SEGMENT_LABEL }
+    if (LocalDesign.current == DesignStyle.MATERIAL && !segments) {
+        MaterialSelect(label, options, selected, onSelect)
+    } else if (LocalDesign.current == DesignStyle.MATERIAL) {
         Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (label != null) Text(label, style = MaterialTheme.typography.bodyLarge)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -764,9 +773,95 @@ fun <T> SettingChoice(label: String?, options: List<Pair<T, String>>, selected: 
     }
 }
 
+private const val MAX_SEGMENTS = 3
+private const val MAX_SEGMENT_LABEL = 12
+
+/**
+ * A choice among many, or among long labels, in Material: an outlined field with the
+ * chosen value that opens a menu of all of them.
+ */
+@Composable
+private fun <T> MaterialSelect(label: String?, options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val chosen = options.firstOrNull { it.first == selected }?.second.orEmpty()
+    val scheme = MaterialTheme.colorScheme
+    Box(Modifier.entry()) {
+        OutlinedTextField(
+            value = chosen,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = if (label != null) ({ Text(label) }) else null,
+            trailingIcon = {
+                Canvas(Modifier.size(10.dp)) {
+                    val path = Path().apply {
+                        moveTo(0f, size.height * 0.25f)
+                        lineTo(size.width, size.height * 0.25f)
+                        lineTo(size.width / 2, size.height * 0.85f)
+                        close()
+                    }
+                    drawPath(path, scheme.onSurfaceVariant)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        // The field itself only shows; the whole of it opens the menu.
+        Box(
+            Modifier
+                .matchParentSize()
+                .padding(top = 8.dp)
+                .focusRing(MaterialTheme.shapes.extraSmall)
+                .clickable { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            for ((value, text) in options) {
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        expanded = false
+                        onSelect(value)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A dialog in the design: a title, what it is about, and its buttons at the end, the one
+ * that does the thing last.
+ */
+@Composable
+fun AppDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    buttons: @Composable RowScope.() -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val design = LocalDesign.current
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = if (design == DesignStyle.MATERIAL) RoundedCornerShape(28.dp) else MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            border = if (design == DesignStyle.MATERIAL) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                content()
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    content = buttons,
+                )
+            }
+        }
+    }
+}
+
 /**
  * A line of text the user types: a bordered field in the shape of the design, with its
- * label above it. [monospace] for commands and bytes.
+ * label above it. [monospace] for commands and bytes; [singleLine] off for a message.
  */
 @Composable
 fun AppTextField(
@@ -775,6 +870,7 @@ fun AppTextField(
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     monospace: Boolean = false,
+    singleLine: Boolean = true,
 ) {
     val scheme = MaterialTheme.colorScheme
     val design = LocalDesign.current
@@ -789,7 +885,8 @@ fun AppTextField(
         BasicTextField(
             value = value,
             onValueChange = onChange,
-            singleLine = true,
+            singleLine = singleLine,
+            minLines = if (singleLine) 1 else 3,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 color = scheme.onSurface,
                 fontFamily = if (monospace) FontFamily.Monospace else null,

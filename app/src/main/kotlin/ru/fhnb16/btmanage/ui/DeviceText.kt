@@ -5,6 +5,8 @@ import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Cell
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Role
+import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /** Wording shared by the screens, the widgets and the notifications. */
 object DeviceText {
@@ -71,6 +73,25 @@ object DeviceText {
         ageMs < 48 * 3_600_000L -> context.getString(R.string.age_hours, ageMs / 3_600_000)
         else -> context.getString(R.string.age_days, ageMs / (24 * 3_600_000L))
     }
+
+    /**
+     * How far a device probably is, from the strength of its signal: "Closer than a metre",
+     * "About 3 m", "Further than 10 m". Walls and bodies weaken a signal too, so this is a
+     * rough guide, in whole metres.
+     */
+    fun distance(context: Context, rssi: Int): String {
+        // The usual model of a signal fading with distance: −59 dBm at one metre, a path
+        // loss exponent of 2, as in open space.
+        val meters = 10.0.pow((MEASURED_POWER - rssi) / (10 * PATH_LOSS))
+        return when {
+            meters < 1.0 -> context.getString(R.string.distance_close)
+            meters < 10.0 -> context.getString(R.string.distance_meters, meters.roundToInt())
+            else -> context.getString(R.string.distance_far)
+        }
+    }
+
+    private const val MEASURED_POWER = -59.0
+    private const val PATH_LOSS = 2.0
 
     /** "About 3 h 20 min left". Past a few hours the minutes are false precision. */
     fun estimate(context: Context, minutes: Int): String {

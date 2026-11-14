@@ -92,6 +92,15 @@ private fun ConsoleBody(devices: List<Device>) {
         }
     }
 
+    fun openRfcomm(service: String, secure: Boolean) {
+        val uuid = Console.uuid(service)
+        if (uuid == null) {
+            Console.note("not a UUID: $service")
+        } else {
+            scope.launch { Console.connectRfcomm(context, address, uuid, secure) }
+        }
+    }
+
     Column(
         Modifier
             .fillMaxSize()
@@ -103,88 +112,86 @@ private fun ConsoleBody(devices: List<Device>) {
             Note(stringResource(R.string.console_no_devices), Modifier.entry())
             return@Column
         }
-        SettingChoice(
-            stringResource(R.string.console_device),
-            targets.map { it.address.orEmpty() to DeviceText.name(context, it) },
-            address,
-        ) { address = it }
-        SettingChoice(
-            stringResource(R.string.console_transport),
-            listOf(
-                Console.Transport.GATT to "GATT (LE)",
-                Console.Transport.RFCOMM to "RFCOMM / SPP",
-                Console.Transport.HEADSET to "HFP",
-                Console.Transport.AAP to "AAP (AirPods)",
-            ),
-            transport,
-        ) {
-            transport = it
-            if (it == Console.Transport.RFCOMM && target.isEmpty()) target = Console.SPP
-        }
 
-        // Opening the channel, where the way needs one.
-        Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            when (transport) {
-                Console.Transport.GATT -> AppButton(stringResource(R.string.console_connect)) {
-                    Console.connectGatt(context, address)
-                }
-                Console.Transport.RFCOMM -> {
-                    AppButton(stringResource(R.string.console_connect)) {
-                        val uuid = Console.uuid(target)
-                        if (uuid == null) Console.note("not a UUID: $target") else scope.launch { Console.connectRfcomm(context, address, uuid, secure = true) }
-                    }
-                    AppButton(stringResource(R.string.console_connect_insecure), primary = false) {
-                        val uuid = Console.uuid(target)
-                        if (uuid == null) Console.note("not a UUID: $target") else scope.launch { Console.connectRfcomm(context, address, uuid, secure = false) }
-                    }
-                }
-                else -> {}
+        // Where the commands go: which device, over which way, and whether that way is open.
+        Section(stringResource(R.string.console_where)) {
+            SettingChoice(
+                stringResource(R.string.console_device),
+                targets.map { it.address.orEmpty() to DeviceText.name(context, it) },
+                address,
+            ) { address = it }
+            SettingChoice(
+                stringResource(R.string.console_transport),
+                listOf(
+                    Console.Transport.GATT to stringResource(R.string.console_way_gatt),
+                    Console.Transport.RFCOMM to stringResource(R.string.console_way_rfcomm),
+                    Console.Transport.HEADSET to stringResource(R.string.console_way_headset),
+                    Console.Transport.AAP to stringResource(R.string.console_way_aap),
+                ),
+                transport,
+            ) {
+                transport = it
+                if (it == Console.Transport.RFCOMM && target.isEmpty()) target = Console.SPP
             }
-            if (connection.isNotEmpty()) {
-                AppButton(stringResource(R.string.console_disconnect), primary = false) { Console.closeAll() }
+            if (transport == Console.Transport.RFCOMM) {
+                AppTextField(stringResource(R.string.console_service), target, { target = it }, Modifier.entry(), monospace = true)
             }
-        }
-        if (connection.isNotEmpty()) Note(connection, Modifier.entry())
-        if (transport == Console.Transport.HEADSET) Note(stringResource(R.string.console_headset_note), Modifier.entry())
-
-        // Templates of the chosen way: a tap fills in the fields.
-        Row(
-            Modifier
-                .entry()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            for (template in Console.templates.filter { it.transport == transport }) {
-                AppButton(template.title, primary = false) {
-                    template.target?.let { target = it }
-                    payload = template.payload
-                    hex = template.hex
-                    if (template.read) Console.uuid(template.target.orEmpty())?.let(Console::read)
-                }
-            }
-        }
-
-        if (transport == Console.Transport.GATT || transport == Console.Transport.RFCOMM) {
-            AppTextField(
-                stringResource(if (transport == Console.Transport.GATT) R.string.console_characteristic else R.string.console_service),
-                target,
-                { target = it },
+            Note(
+                if (connection.isNotEmpty()) connection else stringResource(R.string.console_not_connected),
                 Modifier.entry(),
-                monospace = true,
             )
-        }
-        AppTextField(stringResource(R.string.console_payload), payload, { payload = it }, Modifier.entry(), monospace = true)
-        if (transport != Console.Transport.HEADSET) {
-            SettingToggle(stringResource(R.string.console_hex), hex) { hex = it }
-        }
-        Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppButton(stringResource(R.string.console_send)) { send() }
-            if (transport == Console.Transport.GATT) {
-                AppButton(stringResource(R.string.console_read), primary = false) {
-                    Console.uuid(target)?.let(Console::read) ?: Console.note("not a UUID: $target")
+            if (transport == Console.Transport.HEADSET) Note(stringResource(R.string.console_headset_note), Modifier.entry())
+            Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                when (transport) {
+                    Console.Transport.GATT -> AppButton(stringResource(R.string.console_connect)) {
+                        Console.connectGatt(context, address)
+                    }
+                    Console.Transport.RFCOMM -> {
+                        AppButton(stringResource(R.string.console_connect)) { openRfcomm(target, secure = true) }
+                        AppButton(stringResource(R.string.console_connect_insecure), primary = false) { openRfcomm(target, secure = false) }
+                    }
+                    else -> {}
                 }
-                AppButton(stringResource(R.string.console_subscribe), primary = false) {
-                    Console.uuid(target)?.let(Console::subscribe) ?: Console.note("not a UUID: $target")
+                if (connection.isNotEmpty()) {
+                    AppButton(stringResource(R.string.console_disconnect), primary = false) { Console.closeAll() }
+                }
+            }
+        }
+
+        // What goes: a template fills in the fields, a template that reads does so at once.
+        Section(stringResource(R.string.console_command)) {
+            val templates = Console.templates.filter { it.transport == transport }
+            if (templates.isNotEmpty()) {
+                SettingChoice(
+                    stringResource(R.string.console_template),
+                    listOf<Pair<Console.Template?, String>>(null to stringResource(R.string.console_template_none)) +
+                        templates.map { it to it.title },
+                    null,
+                ) { template ->
+                    if (template != null) {
+                        template.target?.let { target = it }
+                        payload = template.payload
+                        hex = template.hex
+                        if (template.read) Console.uuid(template.target.orEmpty())?.let(Console::read)
+                    }
+                }
+            }
+            if (transport == Console.Transport.GATT) {
+                AppTextField(stringResource(R.string.console_characteristic), target, { target = it }, Modifier.entry(), monospace = true)
+            }
+            AppTextField(stringResource(R.string.console_payload), payload, { payload = it }, Modifier.entry(), monospace = true)
+            if (transport != Console.Transport.HEADSET) {
+                SettingToggle(stringResource(R.string.console_hex), hex) { hex = it }
+            }
+            Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppButton(stringResource(R.string.console_send)) { send() }
+                if (transport == Console.Transport.GATT) {
+                    AppButton(stringResource(R.string.console_read), primary = false) {
+                        Console.uuid(target)?.let(Console::read) ?: Console.note("not a UUID: $target")
+                    }
+                    AppButton(stringResource(R.string.console_subscribe), primary = false) {
+                        Console.uuid(target)?.let(Console::subscribe) ?: Console.note("not a UUID: $target")
+                    }
                 }
             }
         }

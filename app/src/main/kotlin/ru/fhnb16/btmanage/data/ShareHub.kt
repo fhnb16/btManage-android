@@ -21,14 +21,14 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.UUID
 
-/** Another btManage on the local network. */
-data class Peer(val id: String, val name: String, val platform: String, val address: String)
+/** Another btManage on the local network. [trusted]: paired, items go both ways. */
+data class Peer(val id: String, val name: String, val platform: String, val address: String, val trusted: Boolean)
 
 /** Something sent or received, for the history on the screen. */
 data class ShareItem(
-    /** "received", "sent" or "failed". */
+    /** "received", "sent", "failed" or "paired". */
     val type: String,
-    /** "file" or "text". */
+    /** "file", "text" or "pair". */
     val kind: String,
     /** The other side: the name of the sender, or the address sent to. */
     val other: String,
@@ -37,13 +37,16 @@ data class ShareItem(
     val path: String?,
     val text: String?,
     val error: String?,
+    /** A failure because the other device does not know this one: pairing helps. */
+    val needsPairing: Boolean,
     val at: Long,
 )
 
 /**
  * Files and text between btManage applications on one local network, through the core's
- * `btmanage-share`: this device announces itself, hears the others, and takes items while
- * the user lets it. Runs from the first use until the process ends.
+ * `btmanage-share`: this device announces itself, hears the others, and takes items from the
+ * devices paired with it while the user lets it. Runs from the first use until the process
+ * ends. The paired devices are kept between runs.
  *
  * Written without a run on a device.
  */
@@ -61,10 +64,15 @@ object ShareHub {
     private val runningFlow = MutableStateFlow(false)
     val running: StateFlow<Boolean> = runningFlow
 
+    private val codeFlow = MutableStateFlow("")
+
+    /** The pairing code of this device; it changes after too many wrong tries. */
+    val code: StateFlow<String> = codeFlow
+
     @Volatile
     private var handle = 0L
     private var multicast: WifiManager.MulticastLock? = null
-    private var app: Context? = null
+    private var prefs: android.content.SharedPreferences? = null
 
     /** The name other devices see. */
     var name: String = Build.MODEL
@@ -75,11 +83,12 @@ object ShareHub {
     fun start(context: Context) {
         if (handle != 0L || !Native.available) return
         val application = context.applicationContext
-        app = application
+        val store = application.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs = store
         name = deviceName(application)
         val inbox = File(application.filesDir, INBOX).apply { mkdirs() }
         val started = try {
-            Native.shareStart(installationId(application), name, "android", inbox.absolutePath, true)
+            Native.shareStart(installationId(store), name, "android", inbox.absolutePath, true)
         } catch (_: UnsatisfiedLinkError) {
             0L
         }
@@ -88,6 +97,9 @@ object ShareHub {
             return
         }
         handle = started
+        runCatching {
+            for (id in store.getStringSet(TRUSTED, emptySet()).orEmpty()) Native.shareTrust(started, id)
+        }
         runningFlow.value = true
         Native.shareSetReceiving(started, Settings.current.shareReceive)
         // Android drops broadcasts on Wi-Fi to save power unless an application holds this.
@@ -131,6 +143,20 @@ object ShareHub {
         if (current != 0L && to.isNotBlank() && text.isNotEmpty()) Native.shareSendText(current, to.trim(), text)
     }
 
+    /** Asks the device at [to] to pair, with the code shown on it. */
+    fun pair(to: String, code: String) {
+        val current = handle
+        if (current != 0L && to.isNotBlank() && code.isNotBlank()) Native.sharePair(current, to.trim(), code)
+    }
+
+    /** Stops taking items from a device, until it is paired again. */
+    fun forget(id: String) {
+        val current = handle
+        if (current == 0L) return
+        Native.shareForget(current, id)
+        keepTrusted(current)
+    }
+
     /**
      * Sends a file the user picked. Its content is copied into the cache first, under its
      * own name, since the core reads files by path.
@@ -150,7 +176,7 @@ object ShareHub {
             resolver.openInputStream(uri)?.use { input -> copy.outputStream().use { input.copyTo(it) } }
         }.getOrNull()
         if (copied == null) {
-            add(ShareItem("failed", "file", to, name, 0, null, null, "could not read the file", System.currentTimeMillis()))
+            add(ShareItem("failed", "file", to, name, 0, null, null, "could not read the file", false, System.currentTimeMillis()))
             return@withContext
         }
         Native.shareSendFile(current, to.trim(), copy.absolutePath)
@@ -162,11 +188,24 @@ object ShareHub {
             runCatching { Native.sharePeers(current) }.getOrNull()?.let { json ->
                 peersFlow.value = runCatching { parsePeers(json) }.getOrDefault(peersFlow.value)
             }
-            runCatching { Native.shareEvents(current) }.getOrNull()?.let { json ->
-                runCatching { parseEvents(json) }.getOrNull()?.forEach(::add)
-            }
+            runCatching { Native.shareCode(current) }.getOrNull()?.let { codeFlow.value = it }
+            val events = runCatching { Native.shareEvents(current) }.getOrNull()?.let { json ->
+                runCatching { parseEvents(json) }.getOrNull()
+            }.orEmpty()
+            events.forEach(::add)
+            if (events.any { it.type == "paired" }) keepTrusted(current)
             delay(POLL_MS)
         }
+    }
+
+    /** Writes the paired devices down, for the next run. */
+    private fun keepTrusted(current: Long) {
+        val json = runCatching { Native.shareTrusted(current) }.getOrNull() ?: return
+        val ids = runCatching {
+            val array = JSONArray(json)
+            List(array.length()) { array.getString(it) }.toSet()
+        }.getOrNull() ?: return
+        prefs?.edit()?.putStringSet(TRUSTED, ids)?.apply()
     }
 
     private fun add(item: ShareItem) {
@@ -178,7 +217,13 @@ object ShareHub {
         val array = JSONArray(json)
         return List(array.length()) { index ->
             val peer = array.getJSONObject(index)
-            Peer(peer.getString("id"), peer.getString("name"), peer.getString("platform"), peer.getString("address"))
+            Peer(
+                id = peer.getString("id"),
+                name = peer.getString("name"),
+                platform = peer.getString("platform"),
+                address = peer.getString("address"),
+                trusted = peer.optBoolean("trusted"),
+            )
         }
     }
 
@@ -190,23 +235,26 @@ object ShareHub {
             val type = event.getString("type")
             ShareItem(
                 type = type,
-                kind = event.optString("kind", "file"),
-                other = if (type == "received") event.optString("from") else event.optString("to"),
+                kind = if (type == "paired") "pair" else event.optString("kind", "file"),
+                other = when (type) {
+                    "received" -> event.optString("from")
+                    "paired" -> event.optString("name")
+                    else -> event.optString("to")
+                },
                 name = event.optString("name"),
                 size = event.optLong("size"),
                 path = if (event.isNull("path")) null else event.optString("path").takeIf { it.isNotEmpty() },
                 text = if (event.isNull("text")) null else event.optString("text").takeIf { it.isNotEmpty() },
                 error = event.optString("error").takeIf { it.isNotEmpty() },
+                needsPairing = event.optBoolean("needs_pairing"),
                 at = now,
             )
         }
     }
 
     /** A stable identifier of this installation, so the others can tell it from another. */
-    private fun installationId(context: Context): String {
-        val prefs = context.getSharedPreferences("share", Context.MODE_PRIVATE)
-        return prefs.getString("id", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("id", it).apply() }
-    }
+    private fun installationId(prefs: android.content.SharedPreferences): String =
+        prefs.getString("id", null) ?: UUID.randomUUID().toString().also { prefs.edit().putString("id", it).apply() }
 
     /** The name the user gave the phone, else its model. */
     private fun deviceName(context: Context): String =
@@ -217,6 +265,8 @@ object ShareHub {
     /** Where received files lie; shared with other applications through the file provider. */
     const val INBOX = "inbox"
     private const val OUTBOX = "outbox"
+    private const val PREFS = "share"
+    private const val TRUSTED = "trusted"
     private const val POLL_MS = 1_000L
     private const val MAX_ITEMS = 100
 }

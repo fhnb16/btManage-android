@@ -19,6 +19,18 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## 0.8.0: pairing for sharing, device tools, tidier screens
+
+Written without a compiler. To try:
+
+- Sharing now takes items only from paired devices. The code shows under Share; "Pair" on another device asks for it; after that both send to each other, also after a restart. A wrong code five times makes a new one.
+- The Share screen: each device heard with its actions in its row, text in a dialog, the history with copy, open and pass on.
+- A device page: send a file or text over Bluetooth (Android's own sharing asks for the device); "Find" with the distance from the signal and closer / further; "Play a sound" on Fast Pair earbuds, through the Fast Pair message stream, which Google's service may already hold.
+- Choices with many or long options are a drop-down in Material You now: the device and the way in the console, which showed as unnamed cells before.
+- The console in three sections: where to, the command, the exchange.
+
+Not possible here, and why: a sound from AirPods comes through Find My, which Apple keeps to its own devices. Each bud's own distance: AirPods and most earbuds broadcast from one bud at a time.
+
 ## 0.7.0: sharing
 
 Written without a compiler. To try: two phones, or a phone and a computer, on one Wi-Fi network; each finds the other within a few seconds; text and a file of a few hundred megabytes go both ways; with taking off, the sender is told no; with the application closed and taking on, an item still comes in and a notification says so; a typed address works where the devices do not find each other. On a network that keeps devices apart nothing goes through, and the screen says so.

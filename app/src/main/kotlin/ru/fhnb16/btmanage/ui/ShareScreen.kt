@@ -28,20 +28,32 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.fhnb16.btmanage.R
+import ru.fhnb16.btmanage.data.Peer
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.SettingsData
 import ru.fhnb16.btmanage.data.ShareHub
 import ru.fhnb16.btmanage.data.ShareItem
 import java.io.File
+import java.text.DateFormat
+import java.util.Date
+
+/** Where something is to go: a device heard on the network, or an address typed in. */
+private data class Target(val name: String, val address: String)
 
 /**
- * Files and text to and from other btManage applications on the same network: who is
- * there, what to send, and what came and went.
+ * Files and text to and from other devices with btManage on the same network.
+ *
+ * At the top, this device: whether it takes items, and the code another device types in
+ * to pair with it. Then the devices heard, each with what can be done with it: pair, or
+ * send text or a file. Last, what came and went, with what can be done with it.
  */
 @Composable
 fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
@@ -50,9 +62,15 @@ fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
     val peers by ShareHub.peers.collectAsState()
     val items by ShareHub.items.collectAsState()
     val running by ShareHub.running.collectAsState()
-    var target by rememberSaveable { mutableStateOf("") }
-    var text by rememberSaveable { mutableStateOf("") }
+    val code by ShareHub.code.collectAsState()
     var addresses by remember { mutableStateOf(emptyList<String>()) }
+    var manual by rememberSaveable { mutableStateOf(false) }
+    var typed by rememberSaveable { mutableStateOf("") }
+
+    // What a dialog is open for: text to a device, pairing with one.
+    var writingTo by remember { mutableStateOf<Target?>(null) }
+    var pairingWith by remember { mutableStateOf<Target?>(null) }
+    var fileTo by remember { mutableStateOf<Target?>(null) }
 
     LaunchedEffect(Unit) {
         ShareHub.start(context)
@@ -63,7 +81,12 @@ fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
         }
     }
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch { ShareHub.sendFile(context, target, uri) }
+        val target = fileTo
+        if (uri != null && target != null) scope.launch { ShareHub.sendFile(context, target.address, uri) }
+    }
+    fun sendFile(target: Target) {
+        fileTo = target
+        pickFile.launch(arrayOf("*/*"))
     }
 
     Column(
@@ -76,75 +99,194 @@ fun ShareScreen(settings: SettingsData, modifier: Modifier = Modifier) {
             if (!running) {
                 Note(stringResource(R.string.share_not_running), Modifier.entry())
             } else {
-                Text(ShareHub.name, Modifier.entry())
-                if (addresses.isNotEmpty()) Note(addresses.joinToString(", "), Modifier.entry())
+                Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(ShareHub.name, style = MaterialTheme.typography.titleMedium)
+                    Note(stringResource(R.string.share_visible))
+                }
             }
             SettingToggle(stringResource(R.string.share_receive), settings.shareReceive) { on ->
                 Settings.update(context) { it.copy(shareReceive = on) }
                 ShareHub.setReceiving(on)
             }
-            Note(stringResource(R.string.share_note), Modifier.entry())
+            if (running && code.isNotEmpty()) {
+                Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        stringResource(R.string.share_code),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // The moment of this screen: six digits, read out across the room.
+                    Text(
+                        code.chunked(3).joinToString(" "),
+                        style = TextStyle(fontSize = 32.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp).tabular(),
+                    )
+                    Note(stringResource(R.string.share_code_note))
+                }
+            }
         }
 
         Section(stringResource(R.string.share_peers)) {
             if (peers.isEmpty()) Note(stringResource(R.string.share_no_peers), Modifier.entry())
             for (peer in peers) {
-                OptionRow(peer.name, "${peer.platform} · ${peer.address}", target == peer.address, radio = true) {
-                    target = peer.address
-                }
+                PeerRow(
+                    peer = peer,
+                    onText = { writingTo = Target(peer.name, peer.address) },
+                    onFile = { sendFile(Target(peer.name, peer.address)) },
+                    onPair = { pairingWith = Target(peer.name, peer.address) },
+                    onForget = { ShareHub.forget(peer.id) },
+                )
             }
-            AppTextField(stringResource(R.string.share_address), target, { target = it }, Modifier.entry(), monospace = true)
-        }
-
-        Section(stringResource(R.string.share_send)) {
-            AppTextField(stringResource(R.string.share_text), text, { text = it }, Modifier.entry())
-            Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AppButton(stringResource(R.string.share_send_text), enabled = target.isNotBlank() && text.isNotEmpty()) {
-                    ShareHub.sendText(target, text)
-                    text = ""
+            if (!manual) {
+                Row(Modifier.entry()) {
+                    AppButton(stringResource(R.string.share_by_address), primary = false) { manual = true }
                 }
-                AppButton(stringResource(R.string.share_send_file), primary = false, enabled = target.isNotBlank()) {
-                    pickFile.launch(arrayOf("*/*"))
+            } else {
+                AppTextField(stringResource(R.string.share_address), typed, { typed = it }, Modifier.entry(), monospace = true)
+                if (addresses.isNotEmpty()) Note(stringResource(R.string.share_own_address, addresses.joinToString(", ")), Modifier.entry())
+                val target = Target(typed.trim(), typed.trim())
+                Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppButton(stringResource(R.string.share_pair), primary = false, enabled = typed.isNotBlank()) { pairingWith = target }
+                    AppButton(stringResource(R.string.share_kind_text), primary = false, enabled = typed.isNotBlank()) { writingTo = target }
+                    AppButton(stringResource(R.string.share_kind_file), primary = false, enabled = typed.isNotBlank()) { sendFile(target) }
                 }
             }
         }
 
         if (items.isNotEmpty()) {
             Section(stringResource(R.string.share_history)) {
-                for (item in items) HistoryItem(context, item)
+                for (item in items) {
+                    HistoryRow(context, item) {
+                        val known = peers.firstOrNull { it.address == item.other }
+                        pairingWith = Target(known?.name ?: item.other, item.other)
+                    }
+                }
+            }
+        }
+    }
+
+    writingTo?.let { target -> TextDialog(target, onDismiss = { writingTo = null }) { text -> ShareHub.sendText(target.address, text) } }
+    pairingWith?.let { target -> PairDialog(target, onDismiss = { pairingWith = null }) { entered -> ShareHub.pair(target.address, entered) } }
+}
+
+/** A device on the network and what can be done with it. */
+@Composable
+private fun PeerRow(peer: Peer, onText: () -> Unit, onFile: () -> Unit, onPair: () -> Unit, onForget: () -> Unit) {
+    Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(peer.name, style = MaterialTheme.typography.titleMedium)
+            val state = stringResource(if (peer.trusted) R.string.share_paired else R.string.share_not_paired)
+            Note("${platformName(peer.platform)} · $state")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (peer.trusted) {
+                AppButton(stringResource(R.string.share_kind_text), onClick = onText)
+                AppButton(stringResource(R.string.share_kind_file), primary = false, onClick = onFile)
+                AppButton(stringResource(R.string.share_forget), primary = false, onClick = onForget)
+            } else {
+                AppButton(stringResource(R.string.share_pair), onClick = onPair)
             }
         }
     }
 }
 
 @Composable
-private fun HistoryItem(context: Context, item: ShareItem) {
-    val what = if (item.kind == "text") stringResource(R.string.share_kind_text) else item.name
+private fun platformName(platform: String): String = when (platform) {
+    "android" -> "Android"
+    "windows" -> "Windows"
+    "linux" -> "Linux"
+    else -> platform
+}
+
+/** One thing that came or went: who, what, when, and what can be done with it now. */
+@Composable
+private fun HistoryRow(context: Context, item: ShareItem, onPair: () -> Unit) {
+    val time = remember(item.at) { DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(item.at)) }
     val title = when (item.type) {
-        "received" -> stringResource(R.string.share_received, what, item.other)
-        "sent" -> stringResource(R.string.share_sent, what, item.other)
-        else -> stringResource(R.string.share_failed, what.ifEmpty { item.other }, item.error.orEmpty())
+        "received" -> stringResource(R.string.share_from, item.other)
+        "sent" -> stringResource(R.string.share_to, item.other)
+        "paired" -> stringResource(R.string.share_paired_with, item.other)
+        else -> stringResource(R.string.share_not_sent, item.other)
+    }
+    val what = when {
+        item.type == "paired" -> null
+        item.type == "failed" -> if (item.needsPairing) stringResource(R.string.share_needs_pairing) else item.error
+        item.kind == "text" -> item.text ?: stringResource(R.string.share_kind_text)
+        else -> item.name
     }
     Column(Modifier.entry(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, style = MaterialTheme.typography.bodyMedium)
-        if (item.text != null) {
-            Text(item.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Text(time, style = MaterialTheme.typography.bodySmall.tabular(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (!what.isNullOrEmpty()) {
+            Text(
+                what,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (item.type == "failed") MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+            )
         }
         val path = item.path
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (item.text != null) {
-                AppButton(stringResource(R.string.diagnostics_copy), primary = false) {
-                    runCatching {
-                        context.getSystemService(ClipboardManager::class.java)
-                            ?.setPrimaryClip(ClipData.newPlainText("btManage", item.text))
+        val text = item.text
+        if (item.type == "received" && (text != null || path != null)) {
+            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (text != null) {
+                    AppButton(stringResource(R.string.diagnostics_copy), primary = false) {
+                        runCatching {
+                            context.getSystemService(ClipboardManager::class.java)
+                                ?.setPrimaryClip(ClipData.newPlainText("btManage", text))
+                        }
                     }
                 }
-            }
-            if (path != null) {
-                AppButton(stringResource(R.string.share_open), primary = false) { openFile(context, File(path), Intent.ACTION_VIEW) }
-                AppButton(stringResource(R.string.share_pass_on), primary = false) { openFile(context, File(path), Intent.ACTION_SEND) }
+                if (path != null) {
+                    AppButton(stringResource(R.string.share_open), primary = false) { openFile(context, File(path), Intent.ACTION_VIEW) }
+                    AppButton(stringResource(R.string.share_pass_on), primary = false) { openFile(context, File(path), Intent.ACTION_SEND) }
+                }
             }
         }
+        if (item.type == "failed" && item.needsPairing) {
+            Row(Modifier.padding(top = 4.dp)) {
+                AppButton(stringResource(R.string.share_pair), primary = false, onClick = onPair)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextDialog(target: Target, onDismiss: () -> Unit, onSend: (String) -> Unit) {
+    var text by rememberSaveable { mutableStateOf("") }
+    AppDialog(
+        title = stringResource(R.string.share_text_to, target.name),
+        onDismiss = onDismiss,
+        buttons = {
+            AppButton(stringResource(R.string.action_cancel), primary = false, onClick = onDismiss)
+            AppButton(stringResource(R.string.share_send), enabled = text.isNotEmpty()) {
+                onSend(text)
+                onDismiss()
+            }
+        },
+    ) {
+        AppTextField(stringResource(R.string.share_text), text, { text = it }, singleLine = false)
+    }
+}
+
+@Composable
+private fun PairDialog(target: Target, onDismiss: () -> Unit, onPair: (String) -> Unit) {
+    var code by rememberSaveable { mutableStateOf("") }
+    val digits = code.filter(Char::isDigit)
+    AppDialog(
+        title = stringResource(R.string.share_pair_with, target.name),
+        onDismiss = onDismiss,
+        buttons = {
+            AppButton(stringResource(R.string.action_cancel), primary = false, onClick = onDismiss)
+            AppButton(stringResource(R.string.share_pair), enabled = digits.length == 6) {
+                onPair(digits)
+                onDismiss()
+            }
+        },
+    ) {
+        Note(stringResource(R.string.share_pair_note, target.name))
+        AppTextField(stringResource(R.string.share_code), code, { code = it.take(7) }, monospace = true)
     }
 }
 

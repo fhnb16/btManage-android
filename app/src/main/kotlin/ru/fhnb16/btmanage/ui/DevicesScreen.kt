@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -39,6 +41,7 @@ import ru.fhnb16.btmanage.data.DeviceActions
 import ru.fhnb16.btmanage.data.DeviceFacts
 import ru.fhnb16.btmanage.data.Devices
 import ru.fhnb16.btmanage.data.EventLog
+import ru.fhnb16.btmanage.data.FastPairRing
 import ru.fhnb16.btmanage.data.LinkOutcome
 import ru.fhnb16.btmanage.data.NoiseMode
 import ru.fhnb16.btmanage.service.Aap
@@ -261,6 +264,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (device.paired && address != null) LinkActions(device, address)
+            DeviceTools(device, address)
         }
 
         Section(stringResource(R.string.section_battery)) {
@@ -338,6 +342,131 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
             RemoveActions(device, address)
         }
     }
+}
+
+/**
+ * What else can be done with a device: send it a file or text over Bluetooth, look for it
+ * by its signal, make it ring where it can.
+ */
+@Composable
+private fun DeviceTools(device: Device, address: String?) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var finding by remember(device.id) { mutableStateOf(false) }
+    var writing by remember(device.id) { mutableStateOf(false) }
+    var ringNote by remember(device.id) { mutableStateOf<String?>(null) }
+    val canRing = remember(address) { address != null && FastPairRing.offers(context, address) }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) sendOverBluetooth(context, uri)
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (device.paired) {
+            AppButton(stringResource(R.string.action_send_file), primary = false) { pickFile.launch(arrayOf("*/*")) }
+            AppButton(stringResource(R.string.action_send_text), primary = false) { writing = true }
+        }
+        if (device.rssi != null) {
+            AppButton(stringResource(R.string.action_find), primary = false) { finding = true }
+        }
+        if (canRing && address != null) {
+            AppButton(stringResource(R.string.action_ring), primary = false) {
+                ringNote = null
+                scope.launch {
+                    val failure = FastPairRing.ring(context, address, on = true)
+                    ringNote = if (failure == null) context.getString(R.string.ring_sent) else context.getString(R.string.ring_failed, failure)
+                }
+            }
+        }
+    }
+    ringNote?.let { Note(it) }
+
+    if (finding) FindDialog(device.id) { finding = false }
+    if (writing) BluetoothTextDialog(onDismiss = { writing = false }) { text -> sendTextOverBluetooth(context, text) }
+}
+
+/**
+ * Looking for a device by its signal: how strong it is, how far that suggests, and whether
+ * it grows as the phone moves. Only devices that broadcast give a signal to measure.
+ */
+@Composable
+private fun FindDialog(deviceId: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val devices by Devices.list.collectAsState()
+    val rssi = devices.firstOrNull { it.id == deviceId }?.rssi
+    var previous by remember { mutableStateOf<Int?>(null) }
+    var trend by remember { mutableStateOf(0) }
+    LaunchedEffect(rssi) {
+        val last = previous
+        if (rssi != null && last != null) {
+            trend = when {
+                rssi >= last + TREND_DB -> 1
+                rssi <= last - TREND_DB -> -1
+                else -> trend
+            }
+        }
+        if (rssi != null) previous = rssi
+    }
+
+    AppDialog(
+        title = stringResource(R.string.find_title),
+        onDismiss = onDismiss,
+        buttons = { AppButton(stringResource(R.string.action_close), onClick = onDismiss) },
+    ) {
+        if (rssi == null) {
+            Note(stringResource(R.string.find_lost))
+        } else {
+            Text(DeviceText.distance(context, rssi), style = MaterialTheme.typography.headlineMedium.tabular())
+            SegmentedMeter(signalPercent(rssi), low = false)
+            val hint = when (trend) {
+                1 -> R.string.find_warmer
+                -1 -> R.string.find_colder
+                else -> R.string.find_move
+            }
+            Text(stringResource(hint), style = MaterialTheme.typography.bodyMedium)
+            Note(stringResource(R.string.find_note, rssi))
+        }
+    }
+}
+
+/** How strong a signal is, as a share of the range between faint (−100 dBm) and close (−40 dBm). */
+private fun signalPercent(rssi: Int): Int = ((rssi + 100) * 100 / 60).coerceIn(0, 100)
+
+/** A change of the signal this large, in dB, counts as closer or further. */
+private const val TREND_DB = 4
+
+@Composable
+private fun BluetoothTextDialog(onDismiss: () -> Unit, onSend: (String) -> Unit) {
+    var text by rememberSaveable { mutableStateOf("") }
+    AppDialog(
+        title = stringResource(R.string.action_send_text),
+        onDismiss = onDismiss,
+        buttons = {
+            AppButton(stringResource(R.string.action_cancel), primary = false, onClick = onDismiss)
+            AppButton(stringResource(R.string.share_send), enabled = text.isNotEmpty()) {
+                onSend(text)
+                onDismiss()
+            }
+        },
+    ) {
+        Note(stringResource(R.string.send_text_note))
+        AppTextField(stringResource(R.string.share_text), text, { text = it }, singleLine = false)
+    }
+}
+
+/** Sends text over Bluetooth as a small text file, the way phones exchange notes. */
+private fun sendTextOverBluetooth(context: Context, text: String) {
+    val folder = java.io.File(context.cacheDir, "share").apply { mkdirs() }
+    val file = java.io.File(folder, "btManage-${System.currentTimeMillis()}.txt")
+    runCatching { file.writeText(text) }.getOrNull() ?: return
+    val uri = runCatching {
+        androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", file)
+    }.getOrNull() ?: return
+    sendOverBluetooth(context, uri)
 }
 
 /**
