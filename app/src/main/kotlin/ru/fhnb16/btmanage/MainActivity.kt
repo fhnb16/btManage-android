@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +65,9 @@ class MainActivity : ComponentActivity() {
     /** Counts the times the application was asked to open on its list of devices. */
     private var listAsked by mutableIntStateOf(0)
 
+    /** A tab asked for from outside, such as [PAGE_SETTINGS] from the widget's panel; null once shown. */
+    private var pageAsked by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -70,15 +75,17 @@ class MainActivity : ComponentActivity() {
         Devices.open(this)
         DeviceService.start(this)
         requested = intent.getStringExtra(EXTRA_DEVICE)
+        pageAsked = intent.getStringExtra(EXTRA_PAGE)
         setContent {
-            App(requested, listAsked) { requested = it }
+            App(requested, listAsked, pageAsked, { pageAsked = null }) { requested = it }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         requested = intent.getStringExtra(EXTRA_DEVICE)
-        if (requested == null) listAsked++
+        pageAsked = intent.getStringExtra(EXTRA_PAGE)
+        if (requested == null && pageAsked == null) listAsked++
     }
 
     // While the application is on screen Android's installation dialog may be opened directly.
@@ -94,24 +101,49 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_DEVICE = "device"
+        const val EXTRA_PAGE = "page"
+        const val PAGE_SETTINGS = "settings"
     }
 }
 
 @Composable
-private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
+private fun App(requested: String?, listAsked: Int, pageAsked: String?, pageShown: () -> Unit, select: (String?) -> Unit) {
     val context = LocalContext.current
     val settings by Settings.state.collectAsState()
     val devices by Devices.list.collectAsState()
     var granted by remember { mutableStateOf(DeviceService.hasPermissions(context)) }
-    // The two tabs are pages side by side: a swipe moves between them, as a tap on a tab does.
+    // On a phone the tabs are pages side by side: a swipe moves between them, as a tap on a
+    // tab does. On a television only the chosen tab exists: with the pages side by side the
+    // focus of the remote slipped into the next tab, and the pager followed it there.
     val pager = rememberPagerState { 3 }
+    var tvPage by rememberSaveable { mutableIntStateOf(0) }
     var pairing by rememberSaveable { mutableStateOf(false) }
     val update by Updates.state.collectAsState()
     val scope = rememberCoroutineScope()
 
-    // Asked for the list of devices from outside, while the settings were open.
+    // A television may crop the edges of the picture, so the application keeps clear of
+    // them there, as Android TV asks.
+    val tv = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) }
+    val currentPage = if (tv) tvPage else pager.currentPage
+    fun showPage(page: Int, animate: Boolean) {
+        if (tv) {
+            tvPage = page
+        } else {
+            scope.launch { if (animate) pager.animateScrollToPage(page) else pager.scrollToPage(page) }
+        }
+    }
+
+    // Asked for the list of devices from outside, while another tab was open.
     LaunchedEffect(listAsked) {
-        if (listAsked > 0) pager.scrollToPage(0)
+        if (listAsked > 0) showPage(0, animate = false)
+    }
+    // Asked for a tab from outside: the settings, from the widget's panel.
+    LaunchedEffect(pageAsked) {
+        if (pageAsked == MainActivity.PAGE_SETTINGS) {
+            select(null)
+            showPage(2, animate = false)
+            pageShown()
+        }
     }
 
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -143,10 +175,6 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
     val selected = requested?.let { id -> devices.firstOrNull { it.id == id } }
     BackHandler(enabled = selected != null) { select(null) }
 
-    // A television may crop the edges of the picture, so the application keeps clear of
-    // them there, as Android TV asks.
-    val tv = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) }
-
     AppTheme(settings) {
         Box(
             Modifier
@@ -168,8 +196,8 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
                                     stringResource(R.string.tab_share),
                                     stringResource(R.string.tab_settings),
                                 ),
-                                selected = pager.currentPage,
-                            ) { page -> scope.launch { pager.animateScrollToPage(page) } }
+                                selected = currentPage,
+                            ) { page -> showPage(page, animate = true) }
                         }
                     }
                 },
@@ -195,20 +223,29 @@ private fun App(requested: String?, listAsked: Int, select: (String?) -> Unit) {
                             permissions.launch(wanted.toTypedArray())
                         },
                     ) {
-                        HorizontalPager(
-                            state = pager,
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.Top,
-                        ) { page ->
+                        val page: @Composable (Int) -> Unit = { index ->
                             // Hidden devices, and earbuds of strangers unless asked for, stay out.
                             val shown = devices.filter(settings::shows)
-                            when (page) {
+                            when (index) {
                                 0 -> DevicesScreen(shown, settings, update, startUpdate, { pairing = true }, Modifier.fillMaxSize()) {
                                     select(it)
                                 }
                                 1 -> ShareScreen(settings, Modifier.fillMaxSize())
                                 else -> SettingsScreen(shown, settings, update, startUpdate, askInstallAccess, Modifier.fillMaxSize())
                             }
+                        }
+                        if (tv) {
+                            // One tab at a time, its own focus group: the remote's arrows stay
+                            // inside it, and Up from its top reaches the row of tabs.
+                            key(tvPage) {
+                                Box(Modifier.fillMaxSize().focusGroup()) { page(tvPage) }
+                            }
+                        } else {
+                            HorizontalPager(
+                                state = pager,
+                                modifier = Modifier.fillMaxSize(),
+                                verticalAlignment = Alignment.Top,
+                            ) { index -> page(index) }
                         }
                     }
                 }

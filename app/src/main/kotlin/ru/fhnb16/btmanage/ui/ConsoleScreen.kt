@@ -156,6 +156,13 @@ private fun ConsoleBody(devices: List<Device>) {
                     AppButton(stringResource(R.string.console_disconnect), primary = false) { Console.closeAll() }
                 }
             }
+            // What Android knows of the device without connecting, and its services from SDP.
+            Row(Modifier.entry(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppButton(stringResource(R.string.console_about), primary = false) { Console.about(context, address) }
+                if (transport == Console.Transport.GATT && characteristics.isNotEmpty()) {
+                    AppButton(stringResource(R.string.console_read_all), primary = false) { Console.readAll() }
+                }
+            }
         }
 
         // What goes: a template fills in the fields, a template that reads does so at once.
@@ -196,7 +203,8 @@ private fun ConsoleBody(devices: List<Device>) {
             }
         }
 
-        // What the GATT server offers: a tap picks the characteristic.
+        // What the GATT server offers: a tap picks the characteristic for the fields above;
+        // reading and subscribing go from the row itself.
         if (transport == Console.Transport.GATT && characteristics.isNotEmpty()) {
             Section(stringResource(R.string.console_characteristics)) {
                 for (characteristic in characteristics) {
@@ -205,15 +213,29 @@ private fun ConsoleBody(devices: List<Device>) {
                         "W".takeIf { characteristic.canWrite },
                         "N".takeIf { characteristic.canNotify },
                     ).joinToString("")
-                    Text(
-                        "${Console.name(characteristic.uuid)}  $abilities\n  in ${Console.name(characteristic.service)}",
+                    Column(
                         Modifier
                             .fillMaxWidth()
                             .pressable { target = characteristic.uuid.toString() }
                             .entry(),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                    )
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            "${Console.name(characteristic.uuid)}  $abilities\n  in ${Console.name(characteristic.service)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                        if (characteristic.canRead || characteristic.canNotify) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                if (characteristic.canRead) {
+                                    RowAction(stringResource(R.string.console_read)) { Console.read(characteristic.uuid) }
+                                }
+                                if (characteristic.canNotify) {
+                                    RowAction(stringResource(R.string.console_subscribe)) { Console.subscribe(characteristic.uuid) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -241,4 +263,17 @@ private fun ConsoleBody(devices: List<Device>) {
             }
         }
     }
+}
+
+/** A small action in a row of the list: text in the accent, no button around it. */
+@Composable
+private fun RowAction(label: String, onClick: () -> Unit) {
+    Text(
+        label,
+        modifier = Modifier
+            .pressable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+    )
 }

@@ -47,7 +47,7 @@ import java.text.DateFormat
 import java.util.Date
 
 /** Where something is to go: a device heard on the network, or an address typed in. */
-private data class Target(val name: String, val address: String)
+internal data class Target(val name: String, val address: String)
 
 /**
  * Files and text to and from other devices with btManage on the same network.
@@ -245,7 +245,7 @@ private fun PeerRow(peer: Peer, onText: () -> Unit, onFile: () -> Unit, onPair: 
 }
 
 @Composable
-private fun platformName(platform: String): String = when (platform) {
+internal fun platformName(platform: String): String = when (platform) {
     "android" -> "Android"
     "windows" -> "Windows"
     "linux" -> "Linux"
@@ -326,7 +326,7 @@ private fun TextDialog(target: Target, onDismiss: () -> Unit, onSend: (String) -
 }
 
 @Composable
-private fun PairDialog(target: Target, onDismiss: () -> Unit, onPair: (String) -> Unit) {
+internal fun PairDialog(target: Target, onDismiss: () -> Unit, onPair: (String) -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
     val digits = code.filter(Char::isDigit)
     AppDialog(

@@ -171,6 +171,9 @@
     <string name="pair_unavailable">Bluetooth выключен, или btManage не разрешено им пользоваться</string>
     <string name="pair_location">До Android 12 поиск ничего не находит, пока выключена геолокация</string>
     <string name="popup_none">Нет подключённых устройств</string>
+    <string name="popup_all_devices">Все устройства</string>
+    <string name="state_connected">Подключено</string>
+    <string name="state_nearby">Рядом</string>
     <string name="info_manufacturer">Производитель</string>
     <string name="info_firmware">Прошивка</string>
 
@@ -235,6 +238,14 @@
     <string name="share_failed">Не отправлено, %1$s: %2$s</string>
     <string name="share_open">Открыть</string>
     <string name="share_pass_on">Переслать</string>
+    <string name="send_title">Отправить</string>
+    <string name="send_files">Файлов: %1$d</string>
+    <string name="send_sending">Отправка на %1$s</string>
+    <string name="send_nothing">Нечего отправлять</string>
+    <string name="send_browser">Браузер</string>
+    <string name="send_browser_note">Для устройства без btManage: iPhone, Mac, любого компьютера</string>
+    <string name="send_browser_open">Откройте на другом устройстве:\n%1$s</string>
+    <string name="send_done">Готово</string>
     <string name="web_title">Браузер</string>
     <string name="web_toggle">Доступ из браузера в этой сети</string>
     <string name="web_off_note">iPhone, Mac или любой компьютер без btManage открывает страницу в браузере, забирает файлы, которые вы предложите, и присылает сюда файлы и текст</string>
@@ -285,6 +296,8 @@
     <string name="console_hex">Байты в шестнадцатеричном виде</string>
     <string name="console_send">Отправить</string>
     <string name="console_read">Прочитать</string>
+    <string name="console_read_all">Прочитать всё</string>
+    <string name="console_about">Об устройстве</string>
     <string name="console_subscribe">Подписаться</string>
     <string name="console_characteristics">Характеристики</string>
     <string name="console_output">Обмен</string>

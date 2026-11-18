@@ -108,9 +108,9 @@ class DeviceService : Service() {
         Settings.load(this)
         Devices.open(this)
         appleProducts = getSharedPreferences("apple-products", Context.MODE_PRIVATE)
-        gatt = GattBattery(this) { address, percent ->
+        gatt = GattBattery(this) { address, percent, charging ->
             Diagnostics.lastLevel = "GATT $percent %"
-            Devices.battery(address, Devices.SOURCE_GATT, percent, false)
+            Devices.battery(address, Devices.SOURCE_GATT, percent, charging)
         }
         createChannels()
     }
@@ -384,14 +384,18 @@ class DeviceService : Service() {
             described += "  $name: $transport, ${if (isConnected) "connected" else "not connected"}, " +
                 "battery ${battery ?: "none"}, Apple: $apple"
 
-            // AirPods and Beats keep a channel of their own for levels and settings.
-            if (isConnected && accessory) Aap.keep(this, address)
+            // AirPods and Beats keep a channel of their own for levels and settings. It is
+            // tried for an Apple accessory known by any of the three marks: on Android TV the
+            // list of services Android keeps for a device is often empty or partial, and a
+            // television has no hands-free link that would carry a level instead.
+            val appleAccessory = accessory || named || product in 0..0xFFFF
+            if (isConnected && appleAccessory) Aap.keep(this, address)
 
             // Devices with Bluetooth LE that Android has no level for are asked directly. The
             // services a dual-mode device lists come from Bluetooth Classic and often leave
             // its GATT services out, so it is asked whether or not it lists the Battery Service.
             val overLe = device.type == BluetoothDevice.DEVICE_TYPE_LE || device.type == BluetoothDevice.DEVICE_TYPE_DUAL
-            if (isConnected && battery == null && overLe && !accessory) unread.add(device)
+            if (isConnected && battery == null && overLe && !appleAccessory) unread.add(device)
         }
 
         Diagnostics.paired = bonded.size

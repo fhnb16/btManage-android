@@ -3,8 +3,13 @@ package ru.fhnb16.btmanage.data
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -123,10 +128,41 @@ object WebShare {
                     }
                 }
             }.getOrNull() ?: return@mapNotNull null
-            Offered(List(8) { KEY_ALPHABET[random.nextInt(KEY_ALPHABET.length)] }.joinToString(""), uri, name, size)
+            Offered(newId(), uri, name, size)
         }
         offeredFlow.value = offeredFlow.value + added
     }
+
+    /**
+     * Offers copies of files another application shared: the right to read them may end
+     * when the share menu's panel closes, so they are copied into the cache first.
+     */
+    suspend fun offerCopies(context: Context, uris: List<Uri>) = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val folder = File(context.cacheDir, OFFERED).apply { mkdirs() }
+        val copies = uris.mapNotNull { uri ->
+            val name = runCatching {
+                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull() ?: "file"
+            val copy = unique(folder, safeName(name))
+            runCatching {
+                resolver.openInputStream(uri)?.use { input -> copy.outputStream().use { input.copyTo(it) } }
+            }.getOrNull() ?: return@mapNotNull null
+            Offered(newId(), Uri.fromFile(copy), copy.name, copy.length())
+        }
+        offeredFlow.value = offeredFlow.value + copies
+    }
+
+    /** Runs [work] outside any screen, for as long as the process lives. */
+    fun background(work: suspend () -> Unit) {
+        backgroundScope.launch { work() }
+    }
+
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private fun newId(): String = List(8) { KEY_ALPHABET[random.nextInt(KEY_ALPHABET.length)] }.joinToString("")
 
     fun withdraw(id: String) {
         offeredFlow.value = offeredFlow.value.filterNot { it.id == id }
@@ -350,6 +386,7 @@ object WebShare {
         return candidate
     }
 
+    private const val OFFERED = "offered"
     private const val PORT = 8080
     private const val KEY_LENGTH = 6
     private const val KEY_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"

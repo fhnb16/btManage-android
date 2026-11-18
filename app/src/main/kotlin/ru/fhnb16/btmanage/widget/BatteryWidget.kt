@@ -11,8 +11,12 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.action.ActionParameters
+import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.LinearProgressIndicator
 import androidx.glance.action.actionStartActivity
@@ -35,10 +39,13 @@ import ru.fhnb16.btmanage.R
 import ru.fhnb16.btmanage.data.Cell
 import ru.fhnb16.btmanage.data.Device
 import ru.fhnb16.btmanage.data.Devices
+import ru.fhnb16.btmanage.data.NoiseMode
 import ru.fhnb16.btmanage.data.Role
 import ru.fhnb16.btmanage.data.Settings
 import ru.fhnb16.btmanage.data.WidgetConfig
+import ru.fhnb16.btmanage.service.Aap
 import ru.fhnb16.btmanage.ui.DeviceText
+import ru.fhnb16.btmanage.ui.noiseLabel
 
 /**
  * Home screen widget with the battery levels of a few devices. What it shows and how is set
@@ -234,6 +241,50 @@ private fun DeviceBlock(
         } else {
             Level(context, device.lowestCell, null, 20, lowThreshold, palette, GlanceModifier.fillMaxWidth())
         }
+        NoiseButton(context, device, palette)
+    }
+}
+
+/**
+ * The noise mode of headphones that have noise control, as a button: a tap switches to the
+ * next mode they offer. Shown only while they are connected.
+ */
+@Composable
+private fun NoiseButton(context: Context, device: Device, palette: Palette) {
+    val address = device.address
+    if (!device.connected || address == null || device.noiseModes.isEmpty()) return
+    val current = device.noiseMode
+    val index = current?.let { device.noiseModes.indexOf(it) } ?: -1
+    val next = device.noiseModes[(index + 1) % device.noiseModes.size]
+    val label = current?.let { context.getString(noiseLabel(it)) } ?: context.getString(R.string.section_noise)
+    Spacer(GlanceModifier.height(6.dp))
+    Row(
+        GlanceModifier
+            .fillMaxWidth()
+            .cornerRadius(8.dp)
+            .background(palette.track)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .clickable(
+                actionRunCallback<NextNoiseMode>(
+                    actionParametersOf(NextNoiseMode.ADDRESS to address, NextNoiseMode.MODE to next.code),
+                ),
+            ),
+    ) {
+        Text(label, style = TextStyle(color = palette.accent, fontSize = 12.sp), maxLines = 1)
+    }
+}
+
+/** Sends the next noise mode to the headphones, over the accessory protocol. */
+class NextNoiseMode : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        val address = parameters[ADDRESS] ?: return
+        val mode = NoiseMode.entries.firstOrNull { it.code == parameters[MODE] } ?: return
+        Aap.setNoise(context, address, mode)
+    }
+
+    companion object {
+        val ADDRESS = ActionParameters.Key<String>("address")
+        val MODE = ActionParameters.Key<Int>("mode")
     }
 }
 

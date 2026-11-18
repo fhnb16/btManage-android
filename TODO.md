@@ -19,6 +19,17 @@ What settles it is the text under Settings, About, Diagnostics, copied with the 
 - `07` is there, "list: … 0 from advertisements": the core turns the message down; "last message with levels" shows its first bytes.
 - Levels from advertisements are there, but not on the AirPods: the matching; the line of the pairing says how it was marked ("Apple: name", "product", "service" or "no").
 
+## 0.10.0: the widget's panel, the share menu, watches, the console, TV
+
+Written without a compiler. To try:
+
+- The widget's panel, laid out as the Windows tray panel: the headphones on top with an outline, the level and the meter for each bud and the case, the bolt while charging; noise control under them as a row of four; the other active devices with their glyph and level; "All devices", a new device and the settings at the bottom. All four designs, light and dark.
+- The widget: a button with the noise mode under headphones that have noise control; a tap moves to the next mode.
+- btManage in Android's share menu: one file, several files, text from a browser. Paired btManage first, a tap sends and the panel closes after the files are copied; a device not paired asks for its code; "A browser" offers the files on the page of 0.9.0 and shows its address.
+- A Mi Band or Amazfit band connected through Zepp or Mi Fitness: its level and charging, from its own battery characteristic. Watches and bands that offer the standard Battery Service the same way. Wear OS and Galaxy watches give nothing yet (see Devices and data).
+- The console: "About the device" (type, class, profiles, services from SDP, the level Android keeps), "Read all" after connecting over GATT, names of the standard services and characteristics, values read as text, percent, PnP ID and so on, read and subscribe from each row of the list.
+- Android TV: only the chosen tab exists, so the arrows of the remote no longer slip into the next tab. AirPods: the accessory channel is now tried for AirPods known by their name or model as well, since a TV often keeps no list of services for them; whether it opens depends on the TV's Bluetooth stack, which the diagnostics text tells ("AAP: …").
+
 ## 0.9.0: a page for browsers
 
 Written without a compiler. Share, Browser: switched on, the screen shows `http://<phone>:8080/<key>`. To try from an iPhone and a Mac on the same Wi-Fi: the page opens in Safari in light and dark; files offered on the phone download with their names (Cyrillic ones included); several files picked at once upload one after another with their progress, and land in the history of the Share screen, where Open and Pass on work; text arrives and copies; an address without the key gets "Not found". A file of a few gigabytes both ways. The server stops with the process; whether Android keeps it alive with the screen off, while the device service runs, is not known.
@@ -103,6 +114,7 @@ Still open from before:
 - Match the levels in Fast Pair advertisements to the paired device. Today they are listed as a device of their own.
 - More of what the Apple message says: lid open or shut, the colour, which earbud holds the microphone.
 - The Device Information Service of Bluetooth LE devices (maker, model, firmware), read along with the Battery Service.
+- Wear OS watches (Pixel Watch, Galaxy Watch 4 and later): their level reaches a phone application only through Google's Wear OS data layer, which needs a small application of ours on the watch and the Play services library here. Samsung's older watches go through Galaxy Wearable's own interface. Newer Xiaomi bands (Smart Band 8 and later) encrypt their protocol after a pairing their own application makes.
 - Battery of game controllers that report it only in a HID report. Android gives applications `InputDevice.getBatteryState` from Android 12; not used yet.
 - Tell the vendor of a paired device, to stop relying on names. Android keeps the product identifier from applications.
 - Do the codec read for the privileged path without `dumpsys`, whose format is not a contract.

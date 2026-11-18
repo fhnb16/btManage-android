@@ -180,6 +180,9 @@
     <string name="pair_unavailable">Bluetooth is off, or btManage is not allowed to use it</string>
     <string name="pair_location">Before Android 12 a search finds nothing while Location is off</string>
     <string name="popup_none">No device is connected</string>
+    <string name="popup_all_devices">All devices</string>
+    <string name="state_connected">Connected</string>
+    <string name="state_nearby">Nearby</string>
     <string name="info_manufacturer">Manufacturer</string>
     <string name="info_firmware">Firmware</string>
 
@@ -244,6 +247,14 @@
     <string name="share_failed">Not sent, %1$s: %2$s</string>
     <string name="share_open">Open</string>
     <string name="share_pass_on">Pass on</string>
+    <string name="send_title">Send to</string>
+    <string name="send_files">Files: %1$d</string>
+    <string name="send_sending">Sending to %1$s</string>
+    <string name="send_nothing">Nothing to send</string>
+    <string name="send_browser">A browser</string>
+    <string name="send_browser_note">For a device without btManage: an iPhone, a Mac, any computer</string>
+    <string name="send_browser_open">Open on the other device:\n%1$s</string>
+    <string name="send_done">Done</string>
     <string name="web_title">Browser</string>
     <string name="web_toggle">Open to browsers on this network</string>
     <string name="web_off_note">An iPhone, a Mac or any computer without btManage opens a page in its browser, takes the files you offer and sends files and text here</string>
@@ -294,6 +305,8 @@
     <string name="console_hex">Bytes in hexadecimal</string>
     <string name="console_send">Send</string>
     <string name="console_read">Read</string>
+    <string name="console_read_all">Read all</string>
+    <string name="console_about">About the device</string>
     <string name="console_subscribe">Subscribe</string>
     <string name="console_characteristics">Characteristics</string>
     <string name="console_output">Exchange</string>

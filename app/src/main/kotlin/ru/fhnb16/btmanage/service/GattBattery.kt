@@ -14,14 +14,24 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Reads the Battery Service of Bluetooth LE devices Android holds no level for: mice,
- * keyboards, remotes. One read per device every few minutes; the link the device already
- * has stays as it is.
+ * Reads the level of Bluetooth LE devices Android holds none for: mice, keyboards, remotes
+ * through the standard Battery Service; watches and bands through it too where they offer
+ * it, and Xiaomi Mi Band and Amazfit (Huami) bands through their own battery
+ * characteristic, which they let any client read, as Gadgetbridge reads it. One read per
+ * device every few minutes; the link the device already has, often held by the maker's own
+ * application, stays as it is.
+ *
+ * Not reached this way: Wear OS watches report their battery to the phone only through
+ * Google's Wear OS data layer, and Samsung's through Galaxy Wearable; both need an
+ * application of our own on the watch. Newer Xiaomi bands encrypt their protocol.
  *
  * Written without a run on a device.
  */
 @SuppressLint("MissingPermission")
-class GattBattery(private val context: Context, private val onLevel: (address: String, percent: Int) -> Unit) {
+class GattBattery(
+    private val context: Context,
+    private val onLevel: (address: String, percent: Int, charging: Boolean) -> Unit,
+) {
     private val handler = Handler(Looper.getMainLooper())
     private val triedAt = ConcurrentHashMap<String, Long>()
     private val open = ConcurrentHashMap<String, BluetoothGatt>()
@@ -71,8 +81,15 @@ class GattBattery(private val context: Context, private val onLevel: (address: S
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            // The standard one first; a band of Huami's where that is absent.
             val level = gatt.getService(BATTERY_SERVICE)?.getCharacteristic(BATTERY_LEVEL)
-            EventLog.note("gatt", "${gatt.device.address}: ${gatt.services.size} services, battery ${if (level != null) "found" else "absent"}")
+                ?: gatt.getService(HUAMI_SERVICE)?.getCharacteristic(HUAMI_BATTERY)
+            val found = when (level?.uuid) {
+                BATTERY_LEVEL -> "Battery Service"
+                HUAMI_BATTERY -> "Huami battery"
+                else -> "absent"
+            }
+            EventLog.note("gatt", "${gatt.device.address}: ${gatt.services.size} services, battery $found")
             if (status != BluetoothGatt.GATT_SUCCESS || level == null || !gatt.readCharacteristic(level)) close(gatt)
         }
 
@@ -81,10 +98,18 @@ class GattBattery(private val context: Context, private val onLevel: (address: S
         @Suppress("DEPRECATION")
         override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
             val value = characteristic.value
-            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == BATTERY_LEVEL && value != null && value.isNotEmpty()) {
-                val percent = value[0].toInt() and 0xFF
-                EventLog.note("gatt", "${gatt.device.address}: battery $percent %")
-                if (percent <= 100) onLevel(gatt.device.address, percent)
+            if (status == BluetoothGatt.GATT_SUCCESS && value != null) {
+                val reading = when (characteristic.uuid) {
+                    BATTERY_LEVEL -> value.getOrNull(0)?.let { (it.toInt() and 0xFF) to false }
+                    // Huami: the level in the second byte, 1 in the third while charging.
+                    HUAMI_BATTERY -> value.getOrNull(1)?.let { (it.toInt() and 0xFF) to (value.getOrNull(2)?.toInt() == 1) }
+                    else -> null
+                }
+                if (reading != null) {
+                    val (percent, charging) = reading
+                    EventLog.note("gatt", "${gatt.device.address}: battery $percent %${if (charging) ", charging" else ""} (${EventLog.hex(value)})")
+                    if (percent <= 100) onLevel(gatt.device.address, percent, charging)
+                }
             }
             close(gatt)
         }
@@ -95,5 +120,9 @@ class GattBattery(private val context: Context, private val onLevel: (address: S
         const val TIMEOUT_MS = 20_000L
         val BATTERY_SERVICE: UUID = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")
         val BATTERY_LEVEL: UUID = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
+
+        /** Mi Band 2 to 7 and Amazfit bands and watches. */
+        val HUAMI_SERVICE: UUID = UUID.fromString("0000fee0-0000-1000-8000-00805f9b34fb")
+        val HUAMI_BATTERY: UUID = UUID.fromString("00000006-0000-3512-2118-0009af100700")
     }
 }
