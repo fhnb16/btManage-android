@@ -116,45 +116,41 @@ object Devices {
     }
 
     fun advertisement(address: Long, rssi: Int, kind: Int, id: Int, data: ByteArray) =
-        publish(call { Native.hubAdvertisement(it, address, rssi, kind, id, data, now()) })
+        update { Native.hubAdvertisement(it, address, rssi, kind, id, data, now()) }
 
     fun setSystemDevices(devicesJson: String) =
-        publish(call { Native.hubSetSystemDevices(it, devicesJson, now()) })
+        update { Native.hubSetSystemDevices(it, devicesJson, now()) }
 
     /** A level read from the device itself; [source] is one of the core's, such as [SOURCE_GATT]. */
     fun battery(deviceId: String, source: Int, percent: Int, charging: Boolean) =
-        publish(call { Native.hubBattery(it, deviceId, source, percent, charging, now()) })
+        update { Native.hubBattery(it, deviceId, source, percent, charging, now()) }
 
     /**
      * The level of one battery of a device, learned from somewhere other than an
      * advertisement. The order of [Role] is the numbering the core uses.
      */
     fun cell(deviceId: String, role: Role, source: Int, percent: Int, charging: Boolean) =
-        publish(
-            call {
-                try {
-                    Native.hubCell(it, deviceId, role.ordinal, source, percent, charging, now())
-                } catch (_: UnsatisfiedLinkError) {
-                    // A core library older than this call.
-                    null
-                }
-            },
-        )
+        update {
+            try {
+                Native.hubCell(it, deviceId, role.ordinal, source, percent, charging, now())
+            } catch (_: UnsatisfiedLinkError) {
+                // A core library older than this call.
+                null
+            }
+        }
 
     /** A packet AirPods sent over their accessory protocol: levels, noise mode, conversation awareness. */
     fun aap(deviceId: String, packet: ByteArray) =
-        publish(
-            call {
-                try {
-                    Native.hubAap(it, deviceId, packet, now())
-                } catch (_: UnsatisfiedLinkError) {
-                    null
-                }
-            },
-        )
+        update {
+            try {
+                Native.hubAap(it, deviceId, packet, now())
+            } catch (_: UnsatisfiedLinkError) {
+                null
+            }
+        }
 
     /** Re-reads the list, so ages move on and devices that left drop out. */
-    fun refresh() = publish(call { Native.hubSnapshot(it, now()) })
+    fun refresh() = update { Native.hubSnapshot(it, now()) }
 
     fun history(deviceId: String, windowMs: Long): List<RoleHistory> {
         val json = call { Native.hubHistory(it, deviceId, now() - windowMs) } ?: return emptyList()
@@ -196,12 +192,23 @@ object Devices {
         return if (handle == 0L) null else block(handle)
     }
 
-    private fun publish(json: String?) {
-        json ?: return
-        runCatching { parse(json) }.onSuccess {
-            lastJson = json
-            devices.value = it
+    // BLE callbacks and the service poll run on different threads. Publish each snapshot
+    // before another caller can read a newer one from the hub.
+    @Synchronized
+    private fun update(block: (Long) -> String?): String {
+        if (hub == 0L) return "core unavailable"
+        val json = block(hub) ?: return "no list change"
+        val list = try {
+            parse(json)
+        } catch (error: org.json.JSONException) {
+            val reason = error.message.orEmpty().take(160)
+            if (Diagnostics.lastSnapshotError != reason) EventLog.note("devices", "list decoding failed: $reason")
+            Diagnostics.lastSnapshotError = reason
+            return "list decoding failed"
         }
+        lastJson = json
+        devices.value = list
+        return "list published"
     }
 
     private fun parse(json: String): List<Device> {

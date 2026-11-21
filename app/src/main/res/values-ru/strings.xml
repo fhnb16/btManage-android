@@ -58,6 +58,8 @@
     <string name="info_model">Модель</string>
     <string name="info_address">Адрес</string>
     <string name="info_transport">Соединение</string>
+    <string name="transport_classic">Bluetooth Classic</string>
+    <string name="transport_le">Bluetooth LE</string>
     <string name="transport_dual">Classic и LE</string>
     <string name="info_profiles">Профили</string>
     <string name="info_signal">Сигнал</string>

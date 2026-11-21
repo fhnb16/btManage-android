@@ -1,6 +1,7 @@
 package ru.fhnb16.btmanage.data
 
 import android.os.Build
+import android.os.SystemClock
 import btmanage.core.Native
 import ru.fhnb16.btmanage.BuildConfig
 import java.util.concurrent.ConcurrentHashMap
@@ -34,6 +35,12 @@ object Diagnostics {
     /** The start of the last message with levels, and how loud it was. */
     @Volatile
     var lastProximity = "none"
+
+    @Volatile
+    var lastProximityAt = 0L
+
+    @Volatile
+    var lastSnapshotError = "none"
 
     /** The paired devices as they were last described to the core, a line each. */
     @Volatile
@@ -102,14 +109,17 @@ object Diagnostics {
         val list = Devices.list.value
         val withLevels = list.count { it.cells.isNotEmpty() }
         val fromAdverts = list.count { device -> device.cells.any { it.source == "advert" } }
+        val received = lastProximityAt
+        val proximityAge = if (received == 0L) "" else ", ${(SystemClock.elapsedRealtime() - received) / 1000} s ago"
         return listOf(
             "btManage ${BuildConfig.VERSION_NAME}, core ${if (Native.available) Native.version() else "missing"}",
             "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}",
             "scan: $scan, started ${scanStarts.get()} times",
             "advertisements: ${adverts.get()} total, ${appleAdverts.get()} Apple, ${fastPairAdverts.get()} Fast Pair, last $ago",
             "Apple message types: $types",
-            "last message with levels: $lastProximity",
+            "last Apple proximity message: $lastProximity$proximityAge",
             "list: ${list.size} devices, $withLevels with levels, $fromAdverts from advertisements",
+            "last list decoding error: $lastSnapshotError",
             "paired: $paired, connected: $connected",
             pairedDevices.ifEmpty { "  (none read yet)" },
             "isConnected: $connectedCall, getBatteryLevel: $batteryCall",

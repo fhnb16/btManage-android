@@ -11,6 +11,7 @@ import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
+import android.bluetooth.BluetoothStatusCodes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -310,7 +311,7 @@ object Console {
         val type = if (noResponse) BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE else BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
         enqueue {
             val sent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                server.writeCharacteristic(characteristic, bytes, type) == BluetoothGatt.GATT_SUCCESS
+                server.writeCharacteristic(characteristic, bytes, type) == BluetoothStatusCodes.SUCCESS
             } else {
                 characteristic.writeType = type
                 characteristic.value = bytes
@@ -331,7 +332,7 @@ object Console {
         val value = if (indicate) BluetoothGattDescriptor.ENABLE_INDICATION_VALUE else BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         enqueue {
             val sent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                server.writeDescriptor(descriptor, value) == BluetoothGatt.GATT_SUCCESS
+                server.writeDescriptor(descriptor, value) == BluetoothStatusCodes.SUCCESS
             } else {
                 descriptor.value = value
                 server.writeDescriptor(descriptor)

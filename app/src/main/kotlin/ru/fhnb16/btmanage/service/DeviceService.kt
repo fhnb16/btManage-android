@@ -26,6 +26,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.ParcelUuid
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
 import kotlinx.coroutines.CoroutineScope
@@ -154,9 +155,9 @@ class DeviceService : Service() {
     private suspend fun watch() {
         var tick = 0
         while (scope.isActive) {
-            keepScanning()
             gate.withLock {
                 if (tick % SYSTEM_EVERY == 0) readSystemDevices()
+                keepScanning()
                 Devices.refresh()
                 onDevices(Devices.list.value)
             }
@@ -236,10 +237,11 @@ class DeviceService : Service() {
         }
         if (proximity != null) {
             Diagnostics.appleAdverts.incrementAndGet()
+            val outcome = Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, proximity)
+            Diagnostics.lastProximityAt = SystemClock.elapsedRealtime()
             Diagnostics.lastProximity = proximity.take(10).joinToString(" ") { "%02X".format(it) } +
-                ", ${proximity.size} bytes, ${result.rssi} dBm"
+                ", ${proximity.size} bytes, ${result.rssi} dBm, $outcome"
             logAdvert("apple", result, proximity)
-            Devices.advertisement(address, result.rssi, Devices.ADV_MANUFACTURER, APPLE, proximity)
         }
         val fastPair = record.serviceData?.get(FAST_PAIR)
         if (fastPair != null) {
@@ -282,14 +284,17 @@ class DeviceService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun startScan(open: Boolean) {
-        val scanner = adapter?.bluetoothLeScanner ?: return
+        val scanner = adapter?.bluetoothLeScanner
+        if (scanner == null) {
+            Diagnostics.scan = "LE scanner unavailable"
+            return
+        }
         val filters = if (open) {
             null
         } else {
             listOf(
-                ScanFilter.Builder()
-                    .setManufacturerData(APPLE, byteArrayOf(PROXIMITY_PAIRING), byteArrayOf(0xFF.toByte()))
-                    .build(),
+                // The proximity message can follow another Apple message in the same block.
+                ScanFilter.Builder().setManufacturerData(APPLE, byteArrayOf()).build(),
                 ScanFilter.Builder().setServiceData(FAST_PAIR, byteArrayOf()).build(),
             )
         }
@@ -331,7 +336,8 @@ class DeviceService : Service() {
             val address = device.address
             val isConnected = isConnected(device) == true || address in linked || address in connected
             if (isConnected) connectedCount++
-            val name = runCatching { device.alias }.getOrNull() ?: device.name ?: address
+            val alias = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) runCatching { device.alias }.getOrNull() else null
+            val name = alias ?: device.name ?: address
             val uuids = runCatching { device.uuids }.getOrNull()
             val services = uuids?.mapNotNull { shortUuid(it) }?.distinct().orEmpty()
             val battery = batteryLevel(device) ?: batteries[address]

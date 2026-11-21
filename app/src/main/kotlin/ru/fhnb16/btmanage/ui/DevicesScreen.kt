@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -351,6 +352,7 @@ fun DeviceDetail(device: Device, settings: SettingsData, modifier: Modifier = Mo
 @Composable
 private fun DeviceTools(device: Device, address: String?) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var finding by remember(device.id) { mutableStateOf(false) }
     var writing by remember(device.id) { mutableStateOf(false) }
@@ -378,7 +380,7 @@ private fun DeviceTools(device: Device, address: String?) {
                 ringNote = null
                 scope.launch {
                     val failure = FastPairRing.ring(context, address, on = true)
-                    ringNote = if (failure == null) context.getString(R.string.ring_sent) else context.getString(R.string.ring_failed, failure)
+                    ringNote = if (failure == null) resources.getString(R.string.ring_sent) else resources.getString(R.string.ring_failed, failure)
                 }
             }
         }
